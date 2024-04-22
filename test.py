@@ -13,32 +13,47 @@ data = [[0,1,1,1],
 labels = [1,0,1,1,0,1,0]
 
 input_size = 4
-hidden_size = 8
+hidden_size = 4
 output = 1
 
-Winput_size = np.random.randn(input_size, hidden_size)
+Winput_size = np.random.randn(hidden_size, input_size)
 biosWin = np.random.randn(1,hidden_size)
-Woutput_size = np.random.randn(hidden_size, output)
+Woutput_size = np.random.randn(output, hidden_size)
 boisWout = np.random.randn(1, output)
 
 def relu(x):
     return np.maximum(0, x)
 
 def farword(inputs):
-    hidden_layer = relu(np.dot(inputs, Winput_size) + biosWin)
-    output_layer = relu(np.dot(hidden_layer, Woutput_size) + boisWout)
-    return output_layer
+    hidden_layer = relu(np.dot(Winput_size, inputs))
+    output_layer = relu(np.dot(Woutput_size, hidden_layer))
+    return hidden_layer ,output_layer
 
 def error_count(predictio, target):
-    return  np.mean((predictio, target) ** 2)
+    return np.mean((predictio, target) ** 2)
 
-learning_rate = 0.1
+def backward_propogation(input, target):
+    global Woutput_size, Winput_size, biosWin, boisWout
+    learning_rate = 0.01
+    N = 10
 
-def backward_propogation(input, target, output):
-    error = output - target
-    output_delta = error * output * (1-output)
+    for k in range(N):
+        get = np.random.randint(0,7)
+        x = input[get]
+        y, out = farword(x)
+        e = y - target[get]
 
-    hidden_error = np.dot(output_delta, Winput_size.T)
-    hidden_delta = hidden_error * relu(input) * (1 - relu(input))
+        print(f"data -> {x}, output -> {out}, error -> {e}, target -> {target[get]}")
 
-    Winput_size -= learning_rate * np.dot()
+        gradient = e * out * (1 - out)
+
+        Woutput_size = Woutput_size - learning_rate * gradient * out
+
+        gradient1 = Woutput_size * gradient * (1 - y)
+
+        Winput_size = Winput_size - learning_rate * gradient1 * y
+
+print(Winput_size, "\n", Woutput_size)
+#backward_propogation(data, labels)
+
+backward_propogation(data,labels)
