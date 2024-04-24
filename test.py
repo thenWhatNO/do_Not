@@ -21,6 +21,8 @@ biosWin = np.random.randn(1,hidden_size)
 Woutput_size = np.random.randn(output, hidden_size)
 boisWout = np.random.randn(1, output)
 
+print(f"input W size = {Winput_size} \n bias = {biosWin}")
+
 def relu(x):
     return np.maximum(0, x)
 
@@ -56,4 +58,4 @@ def backward_propogation(input, target):
 
         Winput_size = Winput_size - learning_rate * gradient1 * y
 
-backward_propogation(data,labels)
+#backward_propogation(data,labels)
