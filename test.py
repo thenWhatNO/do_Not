@@ -24,9 +24,12 @@ boisWout = np.random.randn(1, output)
 def relu(x):
     return np.maximum(0, x)
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
 def farword(inputs):
-    hidden_layer = relu(np.dot(Winput_size, inputs))
-    output_layer = relu(np.dot(Woutput_size, hidden_layer))
+    hidden_layer = sigmoid(np.dot(Winput_size, inputs))
+    output_layer = sigmoid(np.dot(Woutput_size, hidden_layer))
     return hidden_layer ,output_layer
 
 def error_count(predictio, target):
@@ -35,7 +38,7 @@ def error_count(predictio, target):
 def backward_propogation(input, target):
     global Woutput_size, Winput_size, biosWin, boisWout
     learning_rate = 0.01
-    N = 10
+    N = 100
 
     for k in range(N):
         get = np.random.randint(0,7)
@@ -52,8 +55,5 @@ def backward_propogation(input, target):
         gradient1 = Woutput_size * gradient * (1 - y)
 
         Winput_size = Winput_size - learning_rate * gradient1 * y
-
-print(Winput_size, "\n", Woutput_size)
-#backward_propogation(data, labels)
 
 backward_propogation(data,labels)
