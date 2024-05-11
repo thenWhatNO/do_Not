@@ -10,36 +10,30 @@ bias1 = np.random.randn(4)
 bias2 = np.random.randn(1)
 
 def relu(x):
-    return np.maximum(np.abs(0.1*x), x)
-def relu_der(x):
-    if x > 0:
-        return 1
-    elif x <= 0:
-        return np.abs(0.1*x)
+    return np.maximum(0, x)
 
-print(relu_der(0))
+def relu_der(x):
+    return np.where(x > 0, 1, 0)
+
+learmimg_rate = 0.1
 
 print(f"W1 {W1}")
 print(f"W2 {W2}")
-for i in range(50):
+for i in range(10):
     x = relu((np.dot(data, W1)))
+    print(f"x = {x}")
     y = relu((np.dot(x, W2)))
+    print(f"y = {y}")
 
     print(f"x : {x} \n\n y : {y}")
 
-    e = np.abs(y - target)
-    print(e)
+    e = 0.5 * (y - target)**2
+    print(F" the eror {e}")
 
-    delta1 = e*relu_der(y)
-    print(delta1)
+    delta2 = (y - target)
+    delta1 = np.dot(delta2, W2.T) * relu_der(x)
+    print(f"delta 2 : {delta2} \n delta1 : {delta1}")
 
-    learmimg_rate = 0.001
-
-    W2 = W2 - learmimg_rate * delta1 * y
-    print(W2)
-
-    delta2 = W2 * delta1 * [relu_der(xx) for xx in x]
-    print(delta2)
-
-    W1 = W1 - learmimg_rate * delta2 * x
-    print(W1)
+    W2 -= learmimg_rate * delta2 * x
+    W1 -= learmimg_rate * np.outer(data, delta1)
+    print(f"w1 : {W1} \n W2: {W2}")
