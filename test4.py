@@ -17,6 +17,7 @@ def relu_der(x):
 
 learmimg_rate = 0.1
 
+
 print(f"W1 {W1}")
 print(f"W2 {W2}")
 for i in range(10):
