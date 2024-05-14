@@ -37,4 +37,4 @@ for i in range(10):
 
     W2 -= learmimg_rate * delta2 * x
     W1 -= learmimg_rate * np.outer(data, delta1)
-    print(f"w1 : {W1} \n W2: {W2}")
+    print(f"w1 : {W1} \n W2: {W2}") 
