@@ -20,11 +20,30 @@ class softmax:
         exp_val = np.exp(x - np.max(x, axis=1, keepdims=True))
         prababilty = exp_val /np.sum(exp_val, axis=1, keepdims=True)
         self.output = prababilty
+
+class loss:
+    def counting(self, output, y):
+        simply_loss = self.farward(output, y)
+        data_loss = np.mean(simply_loss)
+        return data_loss
+    
+class loss_cat(loss):
+    def farward(self, y, targ):
+        simplis = len(y)
+        y_clip = np.clip(y, 1e-7, 1-1e-1)
+
+        if len(y) == 1:
+            cor = y_clip[range(simplis), targ]
+        elif len(y) ==2:
+            cor = np.sum(y_clip * targ, axis=1)
+        negcor = -np.log(cor)
+        return negcor
+
         
 NN1 = NN(3, 6)
 NN2 = NN(6, 2)
 
-NN1.farward(input)
-NN2.farward(NN1.output)
-print(NN1.output)
-print(NN2.output)
+loss_func = loss_cat()
+losss = loss_func.counting([[5,5]], [0,0])
+
+print(losss)
