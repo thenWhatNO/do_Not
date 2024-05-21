@@ -1,11 +1,26 @@
 import math
 import numpy as np
 
-inputs = [[4.8, 1.21, 2.385],
-          [8.9, -1.81, 0.2],
-          [1.41, 1.051, 0.026]]
+input = [0.2,0.5,0.7]
+W = [0.3,0.3,0.3]
 
-exp_val = np.exp(input)
-norm_val = exp_val / np.sum(inputs, axis=1, keepdims=True)
+y = np.dot(input, W)
+print(y)
 
-print(exp_val)
+targ = 0.5
+
+loss = targ - y
+
+gradient = []
+for i in range(3):
+    o = loss * input[i]
+    gradient.append(o)
+
+print(gradient)
+
+for i in range(3):
+    W[i] = W[i] - 0.01 * gradient[i]
+
+print(W)
+y = np.dot(input, W)
+print(y)
