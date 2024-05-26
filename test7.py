@@ -1,26 +1,26 @@
 import math
 import numpy as np
 
-input = [0.2,0.5,0.7]
+input = [[1,0,0],[1,1,0],[1,1,1]]
 W = [0.3,0.3,0.3]
+bias = 1
 
-y = np.dot(input, W)
-print(y)
+targ = [0.1, 0.5, 1]
 
-targ = 0.5
+for i in range(20):
+    R = np.random.randint(0,3)
 
-loss = targ - y
+    y = np.dot(input[R], W) + bias
+    
+    loss = targ[R] - y
+    
+    gradient = []
+    for i in range(3):
+        o = loss * np.abs(input[R][i])
+        gradient.append(o)
 
-gradient = []
-for i in range(3):
-    o = loss * input[i]
-    gradient.append(o)
+    bias = bias + 0.01 * sum(gradient)
 
-print(gradient)
-
-for i in range(3):
-    W[i] = W[i] - 0.01 * gradient[i]
-
-print(W)
-y = np.dot(input, W)
-print(y)
+    for i in range(3):
+        W[i] = W[i] + 0.01 * gradient[i] * input[R][i]
+    print(f"loss : {loss}, target : {targ[R]}, output N : {y} bias : {bias}")

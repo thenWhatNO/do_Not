@@ -12,7 +12,7 @@ W_hidden_layer_1 = np.random.randn(5,5)
 W_hidden_layer_2 = np.random.randn(5,1)
 W_output_layer = np.random.randn(5,1)
 
-print(W_input_layer.shape, '\n\n',W_hidden_layer_1.shape, '\n\n',W_hidden_layer_2.shape, '\n\n',W_output_layer.shape)
+#print(W_input_layer.shape, '\n\n',W_hidden_layer_1.shape, '\n\n',W_hidden_layer_2.shape, '\n\n',W_output_layer.shape)
 
 bias_1 = np.random.randn(1, 1)
 bias_2 = np.random.randn(1, 1)
@@ -44,16 +44,18 @@ def backword(data, labels):
     learning_rate = 0.01
     N = 1000
 
-    for k in range(N):
+    for k in range(1):
         num = np.random.randint(0,13)
         x = data[num]
         out1, out2, out3, out4 = farword(np.array([x]).T)
         E = out4-(labels[num])
 
-        print(f'output : {out4}, error : {E}, target : {labels[num]}')
+        #print(f'output : {out4}, error : {E}, target : {labels[num]}')
 
         gradient_1 = E * out4 * (1-out4)
         W_output_layer = W_output_layer - learning_rate * gradient_1 * out4
+        print(gradient_1)
+        print(np.sum(gradient_1, axis=0, keepdims=True))
         bias_4 = bias_4 - learning_rate * np.sum(gradient_1, axis=0, keepdims=True)
 
         gradient_2 = W_output_layer * gradient_1 * (1-out3)
