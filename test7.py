@@ -7,7 +7,7 @@ bias = 1
 
 targ = [0.1, 0.5, 1]
 
-for i in range(20):
+for i in range(100):
     R = np.random.randint(0,3)
 
     y = np.dot(input[R], W) + bias
@@ -19,7 +19,7 @@ for i in range(20):
         o = loss * np.abs(input[R][i])
         gradient.append(o)
 
-    bias = bias + 0.01 * sum(gradient)
+    bias = bias + 0.01 * loss
 
     for i in range(3):
         W[i] = W[i] + 0.01 * gradient[i] * input[R][i]
