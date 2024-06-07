@@ -1,14 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
+import pandas as pd
 
 class data:
     def __init__(self, data_dir):
-        self.imag = data_dir
-        img = Image.open(self.imag).convert('L')
-        rec_img = img.resize((120,120))
-        img_arr = np.array(rec_img) 
-        self.bin_img = np.where(img_arr > 50, 0, 100)
+        self.data_image = data_dir
+        df = pd.read_csv(self.data_image)
+        print(df[0])
+        for i in range(1):
+            self.imag = 'data' + df[i][0]
+            img = Image.open(self.imag).convert('L')
+            rec_img = img.resize((120,120))
+            img_arr = np.array(rec_img) 
+            self.bin_img = np.where(img_arr > 50, 0, 100)
     
     def show(self):
         plt.imshow(self.bin_img)
@@ -37,5 +42,5 @@ class NN:
     def Relu(self, x):
         return np.maximum(0, x)
 
-images = data("data/O/5a0d5b5b66079.jpg")
+images = data("plenet_data.csv")
 images.show()
