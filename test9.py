@@ -4,16 +4,19 @@ from PIL import Image
 import pandas as pd
 
 class data:
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, bach_num):
+        self.banch = []
         self.data_image = data_dir
         df = pd.read_csv(self.data_image)
-        print(df[0])
-        for i in range(1):
-            self.imag = 'data' + df[i][0]
-            img = Image.open(self.imag).convert('L')
+        images, classes = df['image'], df['targ']
+
+        for i in range(bach_num):
+            r = np.random.randint(0,len(images))
+            img = Image.open('data' + images[r]).convert('L')
             rec_img = img.resize((120,120))
             img_arr = np.array(rec_img) 
-            self.bin_img = np.where(img_arr > 50, 0, 100)
+            bin_img = np.where(img_arr > 50, 0, 100)
+            self.banch.append([bin_img, classes[r]])
     
     def show(self):
         plt.imshow(self.bin_img)
@@ -42,5 +45,5 @@ class NN:
     def Relu(self, x):
         return np.maximum(0, x)
 
-images = data("plenet_data.csv")
-images.show()
+images = data("plenet_data.csv", 100)
+print(images.banch[0])
