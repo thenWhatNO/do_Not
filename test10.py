@@ -11,7 +11,7 @@ colors = ['red', 'blue']
 for i, points in data.items():
     x = [point[0] for point in points]
     y = [point[1] for point in points]
-    plt.scatter(x, y , color=colors[i])
+    plt.scatter(x, y, color=colors[i])
 
 plt.xlabel('X')
 plt.ylabel('Y')
@@ -20,32 +20,35 @@ plt.legend()
 
 class NN:
     def __init__(self, input, output):
-        self.layars = [
-            0.10 * np.random.randn(input, 2),
-            0.10 * np.random.randn(2,output)
-        ]
+        self.w1 = np.array(np.random.randn(3, input))
+        self.w2 = np.array(np.random.randn(3))
+        
     
     def farward(self, datain):
-        self.datas = datain
-        self.out1 = np.dot(datain, self.layars[0])
-        self.out2 = np.dot(self.out1, self.layars[1])
+        self.datas = np.array(datain)
+        self.out1 = np.dot(datain, self.w1.T)
+        self.out2 = np.dot(self.out1, self.w2)      
         return self.out2
     
-    def optim(self, target, lr=0.1):
+    def optim(self, target, lr=0.01):
         loss = target - self.out2
-        grad2 = loss * self.out1
+        print(loss)
+        grad2 = np.dot(loss, self.out1)
+        print(grad2)
+        loss2 = np.mean(grad2-self.out1)
+        print(loss2)
+        grad1 = np.dot(loss2, self.datas)
+        print(grad1)
 
-        grad1 = grad2 * self.datas
+        self.w2 -= lr * grad2 * self.out1
+        self.w1 -= lr * grad1 * self.datas
 
-        print(f"shapes grad2: {np.shape(self.layars[1])} grad1: {np.shape([grad2 * lr * self.out1])}")
-
-        self.layars[1] += [grad2 * lr * self.out1]
-        self.layars[0] += grad1 * lr * self.datas
 
 nn = NN(2, 1)
-hat_y = nn.farward(data[0][0])
-print(hat_y)
-nn.optim(0)
+for i in range(5):
+    R = np.random.randint(0,2)
+    r = np.random.randint(0,11)
 
-hat_y = nn.farward(data[0][0])
-print(hat_y)
+    nn.farward(np.array(data[R][r]))
+    #print(f"target : {R} output : {nn.out2} loss : {r - nn.out2}")
+    nn.optim(R)
