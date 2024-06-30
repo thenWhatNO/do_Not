@@ -1,37 +1,39 @@
 import numpy as np
 import matplotlib.pylab as plt
 
-colors_plt = ['red', 'green']
-
 np.random.seed(0)
-data_x = 2 * np.random.rand(50, 1)
-data_y = 4 + 3 * data_x + np.random.randn(50,1)
+data_x = 3 * np.random.rand(50, 1)
+data_y = 1 + data_x**4 + np.random.rand(50, 1)**2
 
-#plt.scatter(data_x, data_y)
+W1 = np.array([0.1])
+b1 = np.array([0.1])
+W2 = np.array([[0.1],[0.1]])
+b2 = np.array([0.1,0.1])
+outW = np.array([0.1,0.1])
+outb = np.array([0.1])
 
-hidden = np.array([[0.5],[0.5]])
-output = np.array([0.1, 0.1])
+def relu(X):
+    return np.maximum(0, X)
 
-loss_plot = []
-i_plot = []
+def derv_relu(x):
+    return np.where(x > 0,1,0)
 
-for i in range(300):
-    R_label = np.random.randint(0,len(data_x))
+def farword(w1,b1,w2,b2,outw,outb, input):
+    layar_out1 = np.dot(input, w1) + b1
+    activ_func1 = relu(layar_out1)
+    layar_out2 = np.dot(activ_func1, w2.T) + b2
+    activ_func2 = relu(layar_out2)
+    output_layer = np.dot(activ_func2, outw) + outb
+    return activ_func1, activ_func2, output_layer
 
-    out1 = np.dot(data_x[R_label], hidden.T)
-    out3 = np.dot(out1, output)
+def optim(y, ln=0.01):
+    out1, out2, y_hat = farword(W1,b1,W2,b2,outW,outb,data_x[0][0])
+    error = y - y_hat
+    out_grad = error * derv_relu(y)
+    W2_grad = outW * out_grad * derv_relu(out2)
+    W1_grad = W2 * W2_grad * derv_relu(out1)
+    grad = W1 * W1_grad * derv_relu(data_x[0][0])
 
-    loss = np.abs(data_y[R_label][0]-out3)
-    gradient3 = np.dot(loss, out3)
-    gradient1 = np.dot(loss, hidden)
+    print(f"out_grad {out_grad}, W2_grad { W2_grad}, W1_grad{W1_grad}, grad {grad}")
 
-    output -= 0.01 * gradient3
-    hidden -= 0.01 * gradient1
-    print(f" loss1 {[loss]}, label {data_y[R_label]}, output: {[out3]}")
-
-    loss_plot.append(loss)
-    i_plot.append(i)
-    
-    
-plt.plot(i_plot, loss_plot, color='orange')
-plt.show()
+optim(data_y[0][0])
