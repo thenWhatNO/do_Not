@@ -37,7 +37,7 @@ def back(X, Y):
     d_b2 = np.sum(d_A2, axis=0, keepdims=True)
 
     d_A1 = np.dot(W2.T, d_A2)
-    d_z1 = d_A1 .T* derv_relu(z1)
+    d_z1 = np.dot(d_A1, derv_relu(z1))
     d_W1 = np.dot(d_z1, X[i])
     d_b1 = np.sum(d_z1, axis=0, keepdims=True)
 
