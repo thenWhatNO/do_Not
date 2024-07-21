@@ -4,21 +4,21 @@ from scipy.special import erf
 
 np.random.seed(0)
 data_x = 2 * np.random.rand(50, 1)
-data_y = data_x**3 - 2*data_x
+data_y = np.sin(data_x)
 
 plt.scatter(data_x, data_y)
 
-W1 = np.random.randn(25, 1) * 0.01
+W1 = np.random.randn(25, 1)
 b1 = np.random.randn(1, 25)
-W2 = np.random.randn(25, 25) * 0.01
+W2 = np.random.randn(25, 25)
 b2 = np.random.randn(1, 25)
-W3 = np.random.randn(1, 25) * 0.01
+W3 = np.random.randn(1, 25)
 b3 = np.random.randn(1, 1)
 
 def relu(x):
-    return 0.5 * x * (1 + erf(x / np.sqrt(2)))
+    return np.where(x >= 0, x, 0.001*x)
 def derv_relu(x):
-    return 0.5 * (1 + erf(x / np.sqrt(2))) + (x * np.exp(-x**2 / 2) / np.sqrt(2 * np.pi))
+    return np.where(x >= 0, x, 0.001)
 
 def farward(x):
     z1 = np.dot(x, W1.T) + b1
