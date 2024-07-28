@@ -1,6 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+x_min, x_max, y_min, y_max = -3.5, 3.5, -3.5, 3.5
+step_size = 0.3
+
+x_values = np.arange(x_min, x_max, step_size)
+y_values = np.arange(y_min, y_max, step_size)
+x_grid, y_grid = np.meshgrid(x_values, y_values)
+
+x_point = x_grid.flatten()
+y_point = y_grid.flatten()
+
+plt.scatter(x_point, y_point, color="black", marker='o')
+plt.grid()
+
 n_samples_per_cluster = 50  
 n_features = 2        
 n_clusters = 4
@@ -21,8 +34,8 @@ def one_how(labels, num_class):
 
 data_y_one_hot = one_how(data_y, n_clusters)
 
-print(len(data_x))
 
+print(np.array([[x_point[0]], [y_point[0]]]), data_x[i].reshape(-1, 1))
 plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
 plt.show()
 
@@ -75,8 +88,7 @@ def backword(x, y):
 
     return d_W1, d_b1, d_W2, d_b2, d_W3, d_b3
 
-for ii in range(1000):
-    print(f"init -> {ii}")
+for ii in range(700):
     for i in range(len(data_x)):
         X = data_x[i].reshape(-1, 1)
         Y = np.array([data_y_one_hot[i]])
@@ -90,29 +102,51 @@ for ii in range(1000):
         W3 -= 0.001 * d_W3
         b3 -= 0.001 * d_b3
 
-
+plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, alpha=0.4, cmap='viridis')
 prid = []
-for i in range(len(data_x)):
-    X = data_x[i].reshape(-1, 1)
-    Y = data_y_one_hot[i]
+for i in range(len(x_point)):
+    X = np.array([[x_point[i]], [y_point[i]]])
+    #Y = data_y_one_hot[i]
 
     _, _, _, _, _, a3 = farword(X)
 
     output = np.round(a3)
-    print(f"it : {i}, pred : {output}, targ : {Y}")
+    print(f"it : {i}, pred : {output}")
     
     if output[0][0] == 1:
-        prid.append(0)
+        prid.append('red')
     elif output[0][1] == 1:
-        prid.append(1)
+        prid.append('blue')
     elif output[0][2] == 1:
-        prid.append(2)
+        prid.append('green')
     elif output[0][3] == 1:
-        prid.append(3)
+        prid.append('yellow')
+    else:
+        prid.append('black')
 
-print(np.shape(prid))
+plt.scatter(x_point, y_point, c=prid, marker="x", cmap='viridis')
 
-plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, alpha=0.4, cmap='viridis')
-plt.scatter(data_x[:, 0], data_x[:, 1], c=prid, marker="x", cmap='viridis')
+prid2 = []
+for i in range(len(data_x)):
+    X = data_x[i].reshape(-1, 1)
+    #Y = data_y_one_hot[i]
+
+    _, _, _, _, _, a3 = farword(X)
+
+    output = np.round(a3)
+    print(f"it : {i}, pred : {output}")
+    
+    if output[0][0] == 1:
+        prid2.append(0)
+    elif output[0][1] == 1:
+        prid2.append(1)
+    elif output[0][2] == 1:
+        prid2.append(2)
+    elif output[0][3] == 1:
+        prid2.append(3)
+    else:
+        prid.append(4)
+
+plt.scatter(data_x[:, 0], data_x[:, 1], c=prid2, marker="x", cmap='viridis')
 
 plt.show()
