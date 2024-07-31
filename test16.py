@@ -93,7 +93,7 @@ class NN:
             self.optim(X, Y)
 
             for i in range(len(self.param_updata)-1, -1,-1):
-                self.oaram.reverse()
+                self.param.reverse()
                 self.param[i][0] -= 0.001 * self.param_updata[i][0]
                 self.param[i][1] -= 0.001 * self.param_updata[i][1]
 
