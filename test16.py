@@ -75,7 +75,7 @@ class NN:
                 d_Z = d_A * sigmoid_der(self.param_output[i][0])
             elif self.param[i][2] == 0:
                 d_Z = d_A * relu_der(self.param_output[i][0])
-            if i is not 0:
+            if i != 0:
                 d_W = np.dot(d_Z.T, self.param_output[i-1][1])
                 d_B = np.sum(d_Z, axis=0, keepdims=True) 
             else:
@@ -93,9 +93,11 @@ class NN:
             self.optim(X, Y)
 
             for i in range(len(self.param_updata)-1, -1,-1):
-                self.param.reverse()
+                self.param_updata.reverse()
                 self.param[i][0] -= 0.001 * self.param_updata[i][0]
                 self.param[i][1] -= 0.001 * self.param_updata[i][1]
+            self.param_output = []
+            self.param_updata = []
 
 data_y_onehot = one_hot_data(n_classes ,data_y)
 
