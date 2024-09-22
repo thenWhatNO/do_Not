@@ -8,6 +8,8 @@ data_path = "plenet_data.csv"
 df = pd.read_csv(data_path)
 images= df['image']
 
+one_imag = Image.open('data' + images[0])
+
 img_array = []
 for i in images:
     img = Image.open('data'+ i).convert('L')
@@ -16,6 +18,10 @@ for i in images:
     img_clear = np.where(img_2_array > 50, 0 ,100)
     img_one_shot = img_clear.reshape(1, -1)
 
-    img_array.append(img_one_shot)
+    img_array.append(img_clear)
 
-print(img_array)
+plt.imshow(one_imag)
+plt.show()
+
+plt.imshow(img_array[0])
+plt.show()

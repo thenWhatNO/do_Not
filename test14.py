@@ -24,6 +24,8 @@ std_devs = [0.5, 0.5, 0.5, 0.5]
 data_x = np.zeros((n_samples_per_cluster * n_clusters, n_features))
 data_y = np.zeros(n_samples_per_cluster * n_clusters)
 
+np.random.seed(1)
+
 for i in range(n_clusters):
     data_x[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = np.random.normal(
         loc=means[i], scale=std_devs[i], size=(n_samples_per_cluster, n_features))
@@ -45,12 +47,15 @@ def derv_relu(x):
     return np.where(x >= 0, x, 0.001)
 
 def sigmoid(x):
-    x = np.clip(x, -500, 500)
+    if np.any(x > 300) or np.any(x < -300):
+        x = np.clip(x, -300, 300) + np.random.normal(0, 0.1, x.shape)
     return  1 / (1 + np.exp(-x))
 
 def sigmoid_derv(x):
     sig = sigmoid(x)
     return sig * (1 - sig)
+
+np.random.seed(1)
 
 W1 = np.random.rand(25, n_features)
 b1 = np.random.rand(1, 25)
@@ -85,6 +90,10 @@ def backword(x, y):
     d_z1 = d_a1 * derv_relu(z1)
     d_W1 = np.dot(d_z1.T, x.T)
     d_b1 = np.sum(d_z1, axis=0, keepdims=True)
+    # print('\n X:', x, '\n y:', y ,'\n a1:', 
+    #       d_a1, "\n a2:", d_a2, '\n a3:', d_a3, '\n z1:',
+    #       d_z1, '\n z2:', d_z2, '\n z3:', d_z3, '\n W3:',
+    #       d_W3, '\n W2:', d_W2, '\n W1', d_W1)
 
     return d_W1, d_b1, d_W2, d_b2, d_W3, d_b3
 
@@ -111,7 +120,7 @@ for i in range(len(x_point)):
     _, _, _, _, _, a3 = farword(X)
 
     output = np.round(a3)
-    print(f"it : {i}, pred : {output}")
+    #print(f"it : {i}, pred : {output}")
     
     if output[0][0] == 1:
         prid.append('red')
@@ -126,27 +135,27 @@ for i in range(len(x_point)):
 
 plt.scatter(x_point, y_point, c=prid, marker="x", cmap='viridis')
 
-prid2 = []
-for i in range(len(data_x)):
-    X = data_x[i].reshape(-1, 1)
-    #Y = data_y_one_hot[i]
+# prid2 = []
+# for i in range(len(data_x)):
+#     X = data_x[i].reshape(-1, 1)
+#     #Y = data_y_one_hot[i]
 
-    _, _, _, _, _, a3 = farword(X)
+#     _, _, _, _, _, a3 = farword(X)
 
-    output = np.round(a3)
-    print(f"it : {i}, pred : {output}")
+#     output = np.round(a3)
+#     #print(f"it : {i}, pred : {output}")
     
-    if output[0][0] == 1:
-        prid2.append(0)
-    elif output[0][1] == 1:
-        prid2.append(1)
-    elif output[0][2] == 1:
-        prid2.append(2)
-    elif output[0][3] == 1:
-        prid2.append(3)
-    else:
-        prid.append(4)
+#     if output[0][0] == 1:
+#         prid2.append(0)
+#     elif output[0][1] == 1:
+#         prid2.append(1)
+#     elif output[0][2] == 1:
+#         prid2.append(2)
+#     elif output[0][3] == 1:
+#         prid2.append(3)
+#     else:
+#         prid.append(4)
 
-plt.scatter(data_x[:, 0], data_x[:, 1], c=prid2, marker="x", cmap='viridis')
+# plt.scatter(data_x[:, 0], data_x[:, 1], c=prid2, marker="x", cmap='viridis')
 
 plt.show()

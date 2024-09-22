@@ -21,13 +21,21 @@ n_features = 2
 
 # Create dataset
 data_x, data_y = create_spiral_dataset(n_points, n_classes)
+x_valuse = np.arange(-1, 1, 0.1)
+y_valuse = np.arange(-1, 1, 0.1)
+gridx ,gridy = np.meshgrid(x_valuse, y_valuse)
+
+x_point = gridx.flatten()
+y_point = gridy.flatten()
+plt.scatter(x_point, y_point, color="black", marker='o')
+
 
 # Plot dataset
 plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
 plt.title('Spiral Dataset')
 plt.xlabel('Feature 1')
 plt.ylabel('Feature 2')
-#plt.show()
+plt.show()
 
 def one_hot_data(classes, data):
     return np.eye(classes)[data.astype(int)]
@@ -98,8 +106,32 @@ class NN:
                 self.param[i][1] -= 0.001 * self.param_updata[i][1]
             self.param_output = []
             self.param_updata = []
+    
+    def show(self):
+        prid = []
+        for i in range(len(x_point)):
+            X = np.array([[x_point[i]], [y_point[i]]])
+
+            _, _, a3 = self.farward(X.T)
+            output = np.round(a3)
+
+            print("print 1 : ", output[0][0][1])
+            print("print 2 : ", output[1][0][0])
+
+
+            if output[0][0] == 1:
+                prid.append('red')
+            elif output[0][1] == 1:
+                prid.append('blue')
+            else:
+                prid.append('black')
+
+            plt.scatter(x_point, y_point, c=prid, marker='x')
+            plt.show()
+
 
 data_y_onehot = one_hot_data(n_classes ,data_y)
 
 model = NN()
 model.fit(data_x, data_y_onehot)
+model.show()

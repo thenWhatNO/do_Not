@@ -31,7 +31,7 @@ class AdamOptimizer:
         return params
     
 input = [[1,0,0],[1,1,0],[1,1,1]]
-W = [0.3,0.3,0.3]
+W = [0.-3,0.1,0.3]
 bias = 1
 
 targ = [0.1, 0.5, 1]
