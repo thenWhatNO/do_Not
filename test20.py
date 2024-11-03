@@ -109,8 +109,8 @@ class NN:
         wight = np.random.randn(neruals, weithg) * np.sqrt(2. / weithg)
         bias = np.random.randn(1, neruals)
 
-        self.wight.append(wight)
-        self.bias.append(bias) 
+        self.Wight.append(wight)
+        self.Bias.append(bias) 
 
     def Activeit(self, Z, activation):
         if activation == "relu":
@@ -143,6 +143,8 @@ class NN:
 
         self.Output.append(X)
         self.Layers()
+        
+        self.batch_label.append(self.Output[-1])
 
     def fit(self, epoch, batch_size):
 
