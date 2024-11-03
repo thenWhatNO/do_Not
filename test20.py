@@ -101,9 +101,8 @@ class NN:
 
     def Creat(self, ):
         self.Creat_time = True
-        while self.Creat_time:
-            self.Layers()
-            self.Creat_time = False
+        self.Layers()
+        self.Creat_time = False
 
     def Creat_param(self, neruals, weithg):
         np.random.seed(1)
@@ -130,11 +129,13 @@ class NN:
             self.Creat_param(output, input)
             return
 
-        Z = np.dot(self.Output, self.Wight.T) + self.Bias
+        Z = np.dot(self.Output[self.on_this][-1], self.Wight.T) + self.Bias
         self.Z_output.append(Z)
 
         A = self.Activeit(Z, activition_func)
         self.Output.append(A)
+        
+        self.on_this += 1
 
     def farword(self, X):
         X = X.reshape(-1, 1).T
