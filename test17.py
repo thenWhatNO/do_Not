@@ -52,30 +52,30 @@ y_point = y_grid.flatten()
 
 #///////////// other data base
 
-# n_samples_per_cluster = 50  
-# n_features = 2        
-# n_clusters = 4
+n_samples_per_cluster = 50  
+n_features = 2        
+n_clusters = 4
 
-# means = [(-2, -2), (2, 2), (-2, 2), (2, -2)]
-# std_devs = [0.5, 0.5, 0.5, 0.5]
+means = [(-2, -2), (2, 2), (-2, 2), (2, -2)]
+std_devs = [0.5, 0.5, 0.5, 0.5]
 
-# data_x = np.zeros((n_samples_per_cluster * n_clusters, n_features))
-# data_y = np.zeros(n_samples_per_cluster * n_clusters)
+data_x = np.zeros((n_samples_per_cluster * n_clusters, n_features))
+data_y = np.zeros(n_samples_per_cluster * n_clusters)
 
-# for i in range(n_clusters):
-#     data_x[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = np.random.normal(
-#         loc=means[i], scale=std_devs[i], size=(n_samples_per_cluster, n_features))
-#     data_y[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = i
+for i in range(n_clusters):
+    data_x[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = np.random.normal(
+        loc=means[i], scale=std_devs[i], size=(n_samples_per_cluster, n_features))
+    data_y[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = i
 
-# def one_how(labels, num_class):
-#     return np.eye(num_class)[labels.astype(int)]
+def one_how(labels, num_class):
+    return np.eye(num_class)[labels.astype(int)]
 
-# data_y_one_hot = one_how(data_y, n_clusters)
+data_y_one_hot = one_how(data_y, n_clusters)
 
-# plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
-# plt.show()
+plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
+plt.show()
 
-# data_set1 = [[data_x], data_y_one_hot]
+data_set1 = [[data_x], data_y_one_hot]
 
 
 ###################### the other function #########################
@@ -118,6 +118,7 @@ class NN:
         self.X_data, self.Y_data = data[0], data[1]
         self.wight = []
         self.bias = []
+        self.kernel = []
 
         self.optin_time = False
         self.time = 1
@@ -132,6 +133,10 @@ class NN:
     def CreatLayers(self):
         self.creat = True
         for func, arg1, arg2 in self.layers:
+
+            if func == NN.conv2D:
+                self.conv2D(None, 3, None)
+
             func(arg1, arg2)
         self.creat = False
 
@@ -142,6 +147,54 @@ class NN:
 
         self.wight.append(wight)
         self.bias.append(bias)
+
+    def creat_kernel(self, size):
+        kernel = np.random.randn(size, size)
+
+        self.kernel.append(kernel)
+
+    def conv2D(self, input_image, kernel_size, gradient, stride=1, padding=0, lerning_rate = 0.01,):
+        if self.creat:
+            self.creat_kernel(kernel_size)
+            return
+
+        if padding > 0:
+            input_image = np.pad(input_image, ((padding, padding), (padding, padding)), mode='constant')
+
+        if self.optin_time:
+            kernel_height, kernel_width = self.kernel[0].shape
+            gradient_height, gradient_width = gradient.shape
+
+            filter_gradient = np.zeros((kernel_height, kernel_width))
+
+            for y in range(0, gradient_height):
+                for x in range(0, gradient_width):
+                    region = input_image[y:y+kernel_height, x:x+kernel_width]
+                    filter_gradient += region * gradient[y,x]
+
+            new_kernel = self.kernel[0] - lerning_rate * filter_gradient
+            #the drev func of conv2D
+        else:
+            input_height, input_width = input_image.shape
+            kernel_height, kernel_width = self.kernel[0].shape
+
+            output_height = (input_height - kernel_height) // stride + 1
+            output_width = (input_width - kernel_width) // stride + 1
+
+            output = np.zeros((output_height, output_width))
+
+            for y in range(0, output_height):
+                for x in range(0, output_width):
+                    region = input_image[y*stride:y*stride+kernel_height, x*stride:x*stride+kernel_width]
+                    opa = region * self.kernel[0]
+                    output[y, x] = np.sum(opa)
+            
+            self.A_output[self.stack_func_opiration].append(output)
+
+    def Flatten(self, img):
+        flat = np.array(img).flatten()
+        self.A_output[self.stack_func_opiration].append(flat)
+
 
     def swish(self, input, output):
         if(self.creat):
@@ -195,6 +248,9 @@ class NN:
         for layer, arg1, arg2 in self.layers:
             Z = np.dot(self.stack_opiration[self.stack_func_opiration][-1], self.wight[self.stack_func_opiration].T) + self.bias[self.stack_func_opiration]
             self.Z_output[self.stack_func_opiration].append(Z[0])
+
+            if layer == self.conv2D():
+                self.conv2D(self.stack_opiration[self.stack_func_opiration], 3, None)
 
             layer(arg1, arg2)
             self.stack_func_opiration += 1
@@ -334,23 +390,23 @@ class NN:
                 prid.append('black')
         plt.scatter(x_point, y_point, c=prid, marker="o", cmap='viridis')
 
-        plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, marker='x', cmap='viridis')
+        #plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, marker='x', cmap='viridis')
 
         plt.show()
 
-# class smaln(NN):
-#     def __init__(self, data):
-#         super().__init__(data)
+class smaln(NN):
+    def __init__(self, data):
+        super().__init__(data)
 
-#         self.layers = [
-#             (self.relu, 2, 60),
-#             (self.relu, 60, 100),
-#             (self.relu, 100, 60),
-#             (self.sigmoid, 60, 4)
-#         ]
+        self.layers = [
+            (self.conv2D,0,0),
+            (self.Flatten,0,0),
+            (self.relu, 2, 60),
+            (self.sigmoid, 60, 4)
+        ]
 
-# model = smaln(data_set1)
+model = smaln(data_set1)
 
-# model.CreatLayers()
-# model.fit(100, 10)
-# model.show()
+model.CreatLayers()
+model.fit(100, 10)
+model.show()
