@@ -89,7 +89,11 @@ class NN:
         self.Output = []
         self.Z_output = []
 
-    def Layers(self):   
+    def Layers(self):
+        if self.optim_time:
+            self.Dense(25, 1, "sigmoid")
+            self.Dense(2, 25, "relu")
+            return
         self.Dense(2, 25, "relu")
         self.Dense(25, 1, "sigmoid")
 
@@ -128,8 +132,15 @@ class NN:
         if self.Creat_time:
             self.Creat_param(output, input)
             return
+        
+        if self.optim_time:
+            Z_D = self.Output_drev[-1] * self.Activeit(self.Z_output[self.on_this])
+            self.W_D = np.dot(Z_D.T, self.Output[self.on_this])
+            self.B_D = np.sum(Z_D, axis=0, keepdims=True)
 
-        Z = np.dot(self.Output[self.on_this][-1], self.Wight.T) + self.Bias
+            self.optim(self.y_batch, self.optim_type)
+
+        Z = np.dot(self.Output[self.on_this][-1], self.Wight[self.on_this].T) + self.Bias[self.on_this]
         self.Z_output.append(Z)
 
         A = self.Activeit(Z, activition_func)
@@ -146,17 +157,36 @@ class NN:
         
         self.batch_label.append(self.Output[-1])
 
-    def fit(self, epoch, batch_size):
+    def binary_cros_entropy_drev(self, y_prob, y_targ):
+        return y_prob - y_targ
+
+    def optim(self, Y, optimaze_type, lerning_rate = 0.01):
+        if optimaze_type == "SVM":
+            self.SVM_optim(Y, lerning_rate)
+
+    def SVM_optim(self, Y, lerning_rate):
+        pass
+
+    def fit(self, epoch, batch_size, optimizer_name):
+        self.optim_type = optimizer_name
 
         for i in range(epoch):
             for point in range(0, len(self.X_data), batch_size):
                 self.add_output_layer(2)
 
                 x_batch = self.X_data[point + batch_size]
-                y_batch = self.Y_data[point + batch_size]
+                self.y_batch = self.Y_data[point + batch_size]
 
                 self.batch_label = []
-                
+
                 for unit in x_batch:
                     output = self.farword(unit)
                     self.batch_label.append(output)
+
+                self.optim_time = False
+
+                self.Output_drev = []
+                A_drev = self.binary_cros_entropy_drev(self.Output_drev, y_batch)
+                self.Output_drev.append(A_drev)
+
+                self.Layers()

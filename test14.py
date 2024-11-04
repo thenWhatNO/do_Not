@@ -76,7 +76,7 @@ def farword(x):
 def backword(x, y):
     z1, a1, z2, a2, z3, a3 = farword(x)
 
-    d_a3 = 2 * (a3 - y)
+    d_a3 = 2 * (a3 - y) 
     d_z3 = d_a3 * sigmoid_derv(z3)
     d_W3 = np.dot(d_z3.T, a2)
     d_b3 = np.sum(d_z3, axis=0, keepdims=True)
