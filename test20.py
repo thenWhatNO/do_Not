@@ -165,7 +165,8 @@ class NN:
             self.SVM_optim(Y, lerning_rate)
 
     def SVM_optim(self, Y, lerning_rate):
-        pass
+        self.Wight[self.on_this] -= self.W_D
+        self.Bias[self.on_this] -= self.B_D
 
     def fit(self, epoch, batch_size, optimizer_name):
         self.optim_type = optimizer_name
