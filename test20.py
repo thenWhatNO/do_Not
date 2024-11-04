@@ -139,6 +139,8 @@ class NN:
             self.B_D = np.sum(Z_D, axis=0, keepdims=True)
 
             self.optim(self.y_batch, self.optim_type)
+            self.on_this -= 1
+            return
 
         Z = np.dot(self.Output[self.on_this][-1], self.Wight[self.on_this].T) + self.Bias[self.on_this]
         self.Z_output.append(Z)
@@ -163,10 +165,15 @@ class NN:
     def optim(self, Y, optimaze_type, lerning_rate = 0.01):
         if optimaze_type == "SVM":
             self.SVM_optim(Y, lerning_rate)
+        if optimaze_type == "ADAM":
+            self.ADAM_optim(Y, lerning_rate)
 
     def SVM_optim(self, Y, lerning_rate):
         self.Wight[self.on_this] -= self.W_D
         self.Bias[self.on_this] -= self.B_D
+        
+    def ADAM_optim(self, Y, lerning_rate):
+        pass
 
     def fit(self, epoch, batch_size, optimizer_name):
         self.optim_type = optimizer_name
@@ -182,7 +189,6 @@ class NN:
 
                 for unit in x_batch:
                     output = self.farword(unit)
-                    self.batch_label.append(output)
 
                 self.optim_time = False
 
