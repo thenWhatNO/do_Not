@@ -93,6 +93,7 @@ class NN:
         if self.optim_time:
             self.Dense(25, 1, "sigmoid")
             self.Dense(2, 25, "relu")
+            self.optim_time = False
             return
         self.Dense(2, 25, "relu")
         self.Dense(25, 1, "sigmoid")
@@ -140,6 +141,7 @@ class NN:
 
             self.optim(self.y_batch, self.optim_type)
             self.on_this -= 1
+            self.Output_drev.append(np.dot(self.Output_drev[-1], self.Wight[self.on_this]))
             return
 
         Z = np.dot(self.Output[self.on_this][-1], self.Wight[self.on_this].T) + self.Bias[self.on_this]
@@ -166,14 +168,37 @@ class NN:
         if optimaze_type == "SVM":
             self.SVM_optim(Y, lerning_rate)
         if optimaze_type == "ADAM":
+            self.time = 0
             self.ADAM_optim(Y, lerning_rate)
 
     def SVM_optim(self, Y, lerning_rate):
-        self.Wight[self.on_this] -= self.W_D
-        self.Bias[self.on_this] -= self.B_D
+        self.Wight[self.on_this] -= self.W_D * lerning_rate
+        self.Bias[self.on_this] -= self.B_D * lerning_rate
         
-    def ADAM_optim(self, Y, lerning_rate):
-        pass
+    def ADAM_optim(self, Y, lerning_rate, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        if not hasattr(self, 'm_w'):
+            m_w = [np.zeros_like(w) for w in self.Wight]
+            v_w = [np.zeros_like(w) for w in self.Wight]
+            m_b = [np.zeros_like(b) for b in self.Bias]
+            v_b = [np.zeros_like(b) for b in self.Bias]
+
+        m_w[self.on_this] = beta1 * m_w[self.on_this] + (1-beta1) * self.W_D[-1]
+        v_w[self.on_this] = beta2 * v_w[self.on_this] + (1-beta2) * (self.W_D[-1]**2)
+
+        hat_m = m_w[self.on_this] / (1-beta1 ** self.time)
+        hat_v = v_w[self.on_this] / (1-beta2 ** self.time)
+
+        self.Wight[self.on_this] -= lerning_rate * hat_m / (np.sqrt(hat_v) + epsilon)
+
+        m_b[self.on_this] = beta1 * m_b[self.on_this] + (1-beta1) * self.B_D[-1]
+        v_b[self.on_this] = beta2 * v_b[self.on_this] + (1-beta2) * (self.B_D[-1]**2)
+
+        bhat_m = m_b[self.on_this] / (1-beta1 ** self.time)
+        bhat_v = v_b[self.on_this] / (1-beta2 ** self.time)
+
+        self.Bias[self.on_this] -= lerning_rate * bhat_m / (np.sqrt(bhat_v) + epsilon)
+                
+        self.time += 1
 
     def fit(self, epoch, batch_size, optimizer_name):
         self.optim_type = optimizer_name
@@ -189,11 +214,11 @@ class NN:
 
                 for unit in x_batch:
                     output = self.farword(unit)
-
+ 
                 self.optim_time = False
 
                 self.Output_drev = []
-                A_drev = self.binary_cros_entropy_drev(self.Output_drev, y_batch)
+                A_drev = self.binary_cros_entropy_drev(self.Output_drev, self.y_batch)
                 self.Output_drev.append(A_drev)
 
                 self.Layers()
