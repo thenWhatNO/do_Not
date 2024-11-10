@@ -249,9 +249,6 @@ class NN:
             Z = np.dot(self.stack_opiration[self.stack_func_opiration][-1], self.wight[self.stack_func_opiration].T) + self.bias[self.stack_func_opiration]
             self.Z_output[self.stack_func_opiration].append(Z[0])
 
-            if layer == self.conv2D():
-                self.conv2D(self.stack_opiration[self.stack_func_opiration], 3, None)
-
             layer(arg1, arg2)
             self.stack_func_opiration += 1
             self.stack_opiration[self.stack_func_opiration].append(self.A_output[self.stack_func_opiration-1][-1])
@@ -399,8 +396,6 @@ class smaln(NN):
         super().__init__(data)
 
         self.layers = [
-            (self.conv2D,0,0),
-            (self.Flatten,0,0),
             (self.relu, 2, 60),
             (self.sigmoid, 60, 4)
         ]
