@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+from PIL import Image
 
 #################### the grid
 
@@ -13,7 +15,46 @@ x_grid, y_grid = np.meshgrid(x_values, y_values)
 x_point = x_grid.flatten()
 y_point = y_grid.flatten()
 
-#///////////// other data base
+#///////////// img data base
+
+color = True
+
+data_path = "plenet_data.csv"
+
+df = pd.read_csv(data_path)
+images= df['image']
+labels = df['targ']
+
+one_imag = Image.open('data' + images[0])
+
+img_array_for_show = []
+img_array = []
+
+for i in images:
+    img = Image.open('data'+ i)
+    img_resize = img.resize((30,30))
+    if color:
+        convort = img_resize.convert('L')
+    img_2_array = np.array(convort)
+    if color:
+        img_clear = np.where(img_2_array > 50.0, 1.0 ,100.0)
+        cannal_up = img_clear[:, :, np.newaxis]
+    img_one_shot = cannal_up.reshape(1, -1)
+        # imf2float = np.zeros_like(cannal_up)
+        # for i, img in enumerate(cannal_up):
+        #     imf2float[i] = float(img)
+    #img_array.append(img_one_shot[0])
+    img_array_for_show.append(cannal_up.tolist())
+
+def one_how(labels, num_class):
+    return np.eye(num_class)[labels.astype(int)].tolist()
+
+one_label = one_how(labels, 2)
+
+data_set_photo = [img_array_for_show, one_label]
+
+
+#///////////////////
 
 n_samples_per_cluster = 50  
 n_features = 2        
@@ -36,14 +77,11 @@ def one_how(labels, num_class):
 data_y_one_hot = one_how(data_y, n_clusters)
 
 plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
-plt.show()
 
 data_set1 = [data_x, data_y_one_hot]
 
 
 ###################### the other function #########################
-
-
 
 def sigmoid(x):
     x = np.array(x)
@@ -82,6 +120,11 @@ def drev_mish(x):
 class NN:
     def __init__(self, data):
         self.X_data, self.Y_data = data[0], data[1]
+        self.on_this = 0
+
+        self.batch_num = 1
+        self.filter = 1
+        self.channal = 1
 
         self.Wight = []
         self.Bias = []
@@ -91,20 +134,33 @@ class NN:
 
     def Layers(self):
         if self.optim_time:
-            self.Dense(25, 1, "sigmoid")
-            self.Dense(2, 25, "relu")
+            self.Dense(None, None, "sigmoid")
+            self.Dense(None, None, "relu")
+            self.Flatten()
+            self.conv2d(3)
+            self.conv2d(3)
             self.optim_time = False
             return
-        self.Dense(2, 25, "relu")
-        self.Dense(25, 4, "sigmoid")
+        self.conv2d(3)
+        self.conv2d(3)
+        wight_of_flatten = self.Flatten()
+        self.Dense(wight_of_flatten, 20 , "relu")
+        self.Dense(20 , 2, "sigmoid")
 
-    def add_output_layer(self, num_layer):
-        for i in range(num_layer+1):
+    def add_output_layer(self):
+        self.Output = []
+        self.Z_output = []
+
+        for i in range(self.count_layers_num+1):
             self.Output.append([])
             self.Z_output.append([])
         self.Z_output.pop()
 
-    def Creat(self, ):
+    def Creat(self):
+        self.test_img = np.zeros((np.shape(self.X_data[0]))).tolist()
+
+        self.count_layers_num = 0
+
         self.optim_time = False
         self.Creat_time = True
         self.Layers()
@@ -115,11 +171,11 @@ class NN:
         wight = np.random.randn(neruals, weithg) * np.sqrt(2. / weithg)
         bias = np.random.randn(1, neruals)
 
-        self.Wight.append(wight)
-        self.Bias.append(bias) 
+        self.Wight.append(wight.tolist())
+        self.Bias.append(bias.tolist())
 
     def creat_kernel(self, size):
-        kernel = np.random.randn(size, size)
+        kernel = np.random.randn(size, size, self.channal).tolist()
 
         self.kernel.append(kernel)
 
@@ -133,150 +189,260 @@ class NN:
         if activation == "swish":
             A = drev_swish(Z) if self.optim_time else swish(Z)
 
-        return A 
+        return A.tolist()
 
     def Dense(self, input, output, activition_func):
         if self.Creat_time:
+            self.count_layers_num += 1
             self.Creat_param(output, input)
             return
         
         if self.optim_time:
             Z_D = self.Output_drev[-1] * self.Activeit(self.Z_output[self.on_this], activition_func)
-            self.W_D = np.dot(Z_D.T, self.Output[self.on_this])
-            self.B_D = np.sum(Z_D, axis=0, keepdims=True)
+            self.W_D = np.dot(Z_D.T, self.Output[self.on_this]).tolist()
+            self.B_D = np.sum(Z_D, axis=0, keepdims=True).tolist()
 
-            self.Output_drev = np.dot(self.Output_drev[-1], self.Wight[self.on_this])
+            self.Output_drev.append(np.dot(self.Output_drev[-1], self.Wight[self.on_this]).tolist())
 
             self.optim(self.optim_type)
             
             self.on_this -= 1
             return
-
-        Z = np.dot(self.Output[self.on_this][-1], self.Wight[self.on_this].T) + self.Bias[self.on_this]
-        self.Z_output[self.on_this].append(Z[0])
-
-        A = self.Activeit(Z, activition_func)
+        
         self.on_this += 1
+        for i in self.Output[self.on_this-1]:
+            Z = np.dot(i, np.array(self.Wight[self.on_this-1]).T) + self.Bias[self.on_this-1]
+            list_Z = Z.tolist()
+            self.Z_output[self.on_this-1].append(list_Z[0])
 
-        self.Output[self.on_this].append(A[0])
+            A = self.Activeit(Z, activition_func)
+            
+            self.Output[self.on_this].append(A[0])
 
-    def conv2d(self, kernel_size, stride=1, padding=0):
+    def conv2d(self, kernel_size, activition_func, stride=1, padding=0):
+
         if self.Creat_time:
-            self.kernel = []
+            self.count_layers_num += 1
+            self.is_convFirst = True
+            if not hasattr(self, "kernel"):
+                self.kernel = []
             self.kernel_org_shape = 0
             self.creat_kernel(kernel_size)
             self.conv_optim = False
-            return
 
-        input_image = self.Output[self.on_this][-1]
+            self.Wight.append([0])
+            self.Bias.append([0])
+
+            input_image = self.test_img
+
+            input_height, input_width, channals = np.shape(input_image)
+            kernel_height, kernel_width, _= np.shape(self.kernel[self.on_this])
+
+            output_height = (input_height - kernel_height) // stride + 1
+            output_width = (input_width - kernel_width) // stride + 1
+
+            
+            output_test = np.zeros((output_width, output_height, channals)).tolist()
+            self.test_img = output_test
+            self.on_this += 1
+            return
+        
+        input_image = np.array(self.Output[self.on_this])
+        kernel_for_work = np.array(self.kernel[self.on_this])
 
         if self.optim_time:
-            kernel_height, kernel_width = self.kernel[self.on_this].shape
-            gradient_height, gradient_width = self.Output_drev[self.on_this].shape
+            self.kernel_D.append([])
+            kernel_height, kernel_width, channals_k= np.shape(kernel_for_work)
+            batch_size, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
 
-            filter_gradient = np.zeros((kernel_height, kernel_width))
+            work_OUT_dre = np.array(self.Output[self.on_this])
+            A_D_out = np.array(self.Output_drev[-1])
+            kernel_wpok = np.array(self.kernel[self.on_this])
 
-            for y in range(0, gradient_height):
-                for x in range(0, gradient_width):
-                    region = input_image[y:y+kernel_height, x:x+kernel_width]
-                    filter_gradient += region * self.Output_drev[self.on_this][y,x]
+            D_A = np.zeros_like(input_image)
+            D_K = np.zeros_like(self.kernel[self.on_this])
 
-            self.Output_drev[self.on_this].append(filter_gradient)
+            for z in range(0, batch_size):
+                for y in range(0, gradient_height):
+                    for x in range(0, gradient_width):
+                        for o in range(0, channals_c):
+                            h_start, w_start = y * stride, x * stride
+                            h_end, w_end = h_start + kernel_height, w_start + kernel_height
+
+                            region = work_OUT_dre[z,h_start:h_end,w_start:w_end, o]
+
+                            D_K[:, :, o] += region * A_D_out[z,y,x,o]
+
+                            D_A[z, h_start:h_end, w_start:w_end, o] += kernel_wpok[:, :, o] * A_D_out[z,y,x,o]
+
+
+
+            self.kernel_D[-1] = D_K.tolist()
+            teta = D_A.tolist()
+            self.Output_drev.append(teta)
             
             self.conv_optim = True
             self.optim(self.optim_type)
-
+            self.on_this -= 1
+            self.conv_optim = False
             return
+        
+        #?///////////////////////////////////////
+
+        kernel_height, kernel_width, cannals= np.shape(self.kernel[self.on_this])
 
         if padding > 0:
-            input_image = np.pad(self.Output[self.on_this][-1], ((padding, padding), (padding, padding)), mode='constant')
+            input_image = np.pad(self.Output[self.on_this][-1], ((padding, padding), (padding, padding)), mode='constant').tolist()
+    
+    
+        output = self.output_img_shapere(input_image, stride)
+        batch_one, output_height, output_width, channels_img = np.shape(output)
 
-        input_height, input_width = input_image.shape
-        kernel_height, kernel_width = self.kernel[self.on_this].shape
+        for z in range(0, batch_one):
+            for y in range(0, output_height):
+                for x in range(0, output_width):
+                    for o in range(0, channels_img):
+                        h_start, w_start = y * stride, x * stride
+                        h_end, w_end = h_start + kernel_height, w_start + kernel_width
+                        region = input_image[z, h_start:h_end, w_start:w_end, :]
+                        output[z][y][x][o] = np.sum(region * kernel_for_work[:, :, o])
+
+        self.on_this += 1
+        A = self.Activeit(output, activition_func)
+        self.Output[self.on_this] = A
+
+    def output_img_shapere(self, input_image, stride):
+
+        batch_size, input_height, input_width, cannals_num = np.shape(input_image)
+        kernel_height, kernel_width, input_chanells= np.shape(self.kernel[self.on_this])
 
         output_height = (input_height - kernel_height) // stride + 1
         output_width = (input_width - kernel_width) // stride + 1
 
-        output = np.zeros((output_height, output_width))
+        shape_new = (batch_size, output_height, output_width, self.channal)
 
-        for y in range(0, output_height):
-            for x in range(0, output_width):
-                region = input_image[y*stride:y*stride+kernel_height, x*stride:x*stride+kernel_width]
-                opa = region * self.kernel[self.on_this]
-                output[y, x] = np.sum(opa)
+        output = np.zeros(shape_new).tolist()
 
-        self.Output[self.on_this].append(output)
-    
+        return output
 
-    def Flatten(self, img):
-        self.kernel_org_shape = np.array(img).shape
-        flat = np.array(img).flatten()
-        self.Output[self.on_this].append(flat)
+    def Flatten(self):
+        if self.Creat_time:
+            self.count_layers_num += 1
+            self.kernel_org_shape = np.shape(self.test_img)
+            out_of = np.array(self.test_img).reshape(1, -1).tolist()
+
+            self.Wight.append([0])
+            self.Bias.append([0])
+
+            return np.size(out_of)
+
+        if self.optim_time:
+
+            img_prr = self.Output_drev[-1]
+            self.Output_drev.append([])
+            for i in (img_prr if len(img_prr) > 1 else [img_prr]):
+                ii = np.array(i)
+                self.Output_drev[-1].append(ii.reshape(self.kernel_org_shape).tolist())
+
+            self.on_this -= 1
+
+            return
+        
+        self.on_this += 1
+
+        for i in self.Output[self.on_this -1]:
+            img = i
+
+            flat = np.array(img).reshape(1, -1).tolist()
+            self.Output[self.on_this].append(flat[0])
 
     def farword(self, X):
-        X = X.reshape(-1, 1).T
+        if self.is_convFirst == False:
+            X = X.reshape(-1, 1).T
         self.on_this = 0
 
-        self.Output[self.on_this].append(X[0])
+        self.Output[self.on_this] = X
         self.Layers()
         
     def binary_cros_entropy_drev(self, y_prob, y_targ):
-        return y_prob - y_targ
+        return np.array(y_prob) - np.array(y_targ)
 
     def optim(self, optimaze_type, lerning_rate = 0.01):
-
         if optimaze_type == "SVM":
-            self.SVM_optim(lerning_rate)
+            self.SVM_optim_conv(lerning_rate) if self.conv_optim == True else self.SVM_optim(lerning_rate)
         if optimaze_type == "ADAM":
-            self.ADAM_optim(lerning_rate)
+            self.Adam_optim_conv(lerning_rate) if self.conv_optim == True else self.ADAM_optim(lerning_rate)
 
     def SVM_optim(self, lerning_rate):
         self.Wight[self.on_this] -= self.W_D * lerning_rate
         self.Bias[self.on_this] -= self.B_D * lerning_rate
 
     def SVM_optim_conv(self, lerning_rate):
-        self.kernel[self.on_this] -= self.Output_drev[self.on_this] * lerning_rate
+        self.kernel[self.on_this] -= self.kernel_D * lerning_rate
         
     def ADAM_optim(self, lerning_rate, beta1=0.9, beta2=0.999, epsilon=1e-8):
         if not hasattr(self, "time"):
-            self.time = 0
+            self.time = 1
 
-        if not hasattr(self, 'm_w'):
-            m_w = [np.zeros_like(w) for w in self.Wight]
-            v_w = [np.zeros_like(w) for w in self.Wight]
-            m_b = [np.zeros_like(b) for b in self.Bias]
-            v_b = [np.zeros_like(b) for b in self.Bias]
+        workWD = np.array(self.W_D)
+        workBD = np.array(self.B_D)
 
-        m_w[self.on_this] = beta1 * m_w[self.on_this] + (1-beta1) * self.W_D[-1]
-        v_w[self.on_this] = beta2 * v_w[self.on_this] + (1-beta2) * (self.W_D[-1]**2)
+        m_w = [np.zeros_like(w) for w in self.Wight]
+        v_w = [np.zeros_like(w) for w in self.Wight]
+        m_b = [np.zeros_like(b) for b in self.Bias]
+        v_b = [np.zeros_like(b) for b in self.Bias]
+
+        m_w[self.on_this] = beta1 * m_w[self.on_this] + (1-beta1) * workWD[-1]
+        v_w[self.on_this] = beta2 * v_w[self.on_this] + (1-beta2) * (workWD[-1]**2)
 
         hat_m = m_w[self.on_this] / (1-beta1 ** self.time)
         hat_v = v_w[self.on_this] / (1-beta2 ** self.time)
 
-        self.Wight[self.on_this] -= lerning_rate * hat_m / (np.sqrt(hat_v) + epsilon)
+        self.Wight[self.on_this] -= lerning_rate * hat_m / (np.sqrt(hat_v) + epsilon).tolist()
 
-        m_b[self.on_this] = beta1 * m_b[self.on_this] + (1-beta1) * self.B_D[-1]
-        v_b[self.on_this] = beta2 * v_b[self.on_this] + (1-beta2) * (self.B_D[-1]**2)
+        m_b[self.on_this] = beta1 * m_b[self.on_this] + (1-beta1) * workBD[-1]
+        v_b[self.on_this] = beta2 * v_b[self.on_this] + (1-beta2) * (workBD[-1]**2)
 
         bhat_m = m_b[self.on_this] / (1-beta1 ** self.time)
         bhat_v = v_b[self.on_this] / (1-beta2 ** self.time)
 
-        self.Bias[self.on_this] -= lerning_rate * bhat_m / (np.sqrt(bhat_v) + epsilon)
+        self.Bias[self.on_this] -= lerning_rate * bhat_m / (np.sqrt(bhat_v) + epsilon).tolist()
                 
         self.time += 1
 
+    def Adam_optim_conv(self, lerning_rate, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        working_K_D = np.array(self.kernel_D[-1])
+
+        if not hasattr(self, "time"):
+            self.time = 0
+
+        if not hasattr(self, 'kenel'):
+            kornel_M = [np.zeros_like(w) for w in self.kernel]
+            kornel_V = [np.zeros_like(w) for w in self.kernel]
+
+        kornel_M[self.on_this] = beta1 * kornel_M[self.on_this] + (1-beta1) * working_K_D
+        kornel_V[self.on_this] = beta2 * kornel_V[self.on_this] + (1-beta2) * (working_K_D**2)
+
+        hat_m = kornel_M[self.on_this] / (1-beta1 ** self.time)
+        hat_v = kornel_V[self.on_this] / (1-beta2 ** self.time)
+
+        self.kernel[self.on_this] -= lerning_rate * hat_m / (np.sqrt(hat_v) + epsilon).tolist()
+
+
     def fit(self, epoch, batch_size, optimizer_name):
         self.optim_type = optimizer_name
+        self.batch_num = batch_size
 
         for i in range(epoch):
             for point in range(0, len(self.X_data), batch_size):
-                self.add_output_layer(2)
+                self.add_output_layer()
 
                 x_batch = self.X_data[point:point + batch_size]
                 self.y_batch = self.Y_data[point:point + batch_size]
 
-                for unit in x_batch:
-                    output = self.farword(unit)
+                self.batch_for_now = len(x_batch)
+        
+                self.farword(x_batch)
 
                 self.batch_label = self.Output[-1]
  
@@ -284,10 +450,24 @@ class NN:
                 self.Output_drev = []
                 A_drev = self.binary_cros_entropy_drev(self.batch_label, self.y_batch)
                 self.Output_drev.append(A_drev)
+                self.kernel_D = []
 
                 self.on_this -= 1
                 self.Layers()
 
-model = NN(data_set1)
+        for i in range(5):
+            R = np.random.randint(1, len(self.X_data))
+            self.add_output_layer()
+            test_x_data = np.array(self.X_data[R])
+            imgaaaa = test_x_data[np.newaxis, :, :, :]
+            test_y_data = self.Y_data[R]
+
+            #print(test_x_data)
+
+            self.farword(imgaaaa)
+            print(np.round(self.Output[-1]))
+            print(test_y_data)
+
+model = NN(data_set_photo)
 model.Creat()
-model.fit(1, 10, 'ADAM')
+model.fit(10, 5, 'ADAM')
