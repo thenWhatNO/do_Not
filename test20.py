@@ -136,15 +136,25 @@ class NN:
         if self.optim_time:
             self.Dense(None, None, "sigmoid")
             self.Dense(None, None, "relu")
+            self.Dense(None, None, "relu")
+            self.Dense(None, None, "relu")
             self.Flatten()
-            self.conv2d(3)
-            self.conv2d(3)
+            self.conv2d(3, "relu")
+            self.poolingMax()
+            self.conv2d(3, "relu")
+            self.poolingMax()
+            self.conv2d(3, "relu")
             self.optim_time = False
             return
-        self.conv2d(3)
-        self.conv2d(3)
+        self.conv2d(3, "relu")
+        self.poolingMax()
+        self.conv2d(3, "relu")
+        self.poolingMax()
+        self.conv2d(3, "relu")
         wight_of_flatten = self.Flatten()
-        self.Dense(wight_of_flatten, 20 , "relu")
+        self.Dense(wight_of_flatten, 100 , "relu")
+        self.Dense(100, 40, 'relu')
+        self.Dense(40, 20, "relu")
         self.Dense(20 , 2, "sigmoid")
 
     def add_output_layer(self):
@@ -198,7 +208,7 @@ class NN:
             return
         
         if self.optim_time:
-            Z_D = self.Output_drev[-1] * self.Activeit(self.Z_output[self.on_this], activition_func)
+            Z_D = np.array(self.Output_drev[-1]) * self.Activeit(np.array(self.Z_output[self.on_this]), activition_func)
             self.W_D = np.dot(Z_D.T, self.Output[self.on_this]).tolist()
             self.B_D = np.sum(Z_D, axis=0, keepdims=True).tolist()
 
@@ -241,7 +251,6 @@ class NN:
             output_height = (input_height - kernel_height) // stride + 1
             output_width = (input_width - kernel_width) // stride + 1
 
-            
             output_test = np.zeros((output_width, output_height, channals)).tolist()
             self.test_img = output_test
             self.on_this += 1
@@ -254,6 +263,8 @@ class NN:
             self.kernel_D.append([])
             kernel_height, kernel_width, channals_k= np.shape(kernel_for_work)
             batch_size, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
+
+            activ_drev = np.array(self.Activeit(self.Z_output[self.on_this+1], activition_func))
 
             work_OUT_dre = np.array(self.Output[self.on_this])
             A_D_out = np.array(self.Output_drev[-1])
@@ -271,11 +282,9 @@ class NN:
 
                             region = work_OUT_dre[z,h_start:h_end,w_start:w_end, o]
 
-                            D_K[:, :, o] += region * A_D_out[z,y,x,o]
+                            D_K[:, :, o] += region * A_D_out[z,y,x,o] * activ_drev[z,y,x,o]
 
                             D_A[z, h_start:h_end, w_start:w_end, o] += kernel_wpok[:, :, o] * A_D_out[z,y,x,o]
-
-
 
             self.kernel_D[-1] = D_K.tolist()
             teta = D_A.tolist()
@@ -308,8 +317,86 @@ class NN:
                         output[z][y][x][o] = np.sum(region * kernel_for_work[:, :, o])
 
         self.on_this += 1
-        A = self.Activeit(output, activition_func)
+        self.Z_output[self.on_this] = output
+        A = self.Activeit(np.array(output), activition_func)
         self.Output[self.on_this] = A
+
+    def poolingMax(self, steps=2):
+
+        if self.Creat_time:
+            self.count_layers_num += 1
+
+            self.Wight.append([0])
+            self.Bias.append([0])
+            self.kernel.append([0])
+
+            test_img = self.test_img
+            input_height, input_width, channals = np.shape(test_img)
+
+            test_output_height = (input_height - steps) // steps + 1
+            test_output_width = (input_width - steps) // steps + 1
+
+            out_test = np.zeros((test_output_height, test_output_width, channals)).tolist()
+            self.test_img = out_test
+
+            self.on_this += 1
+
+            return
+
+        if self.optim_time:
+            self.poolimgMax_drev()
+            self.on_this -= 1
+        
+            return
+
+        working_img = np.array(self.Output[self.on_this])
+
+        batch, input_height, input_width, cannal = working_img.shape
+
+        output_height = (input_height - steps) // steps + 1
+        output_width = (input_width - steps) // steps + 1
+
+        output_image = np.zeros((batch, output_height, output_width, cannal))
+
+        for b in range(0, batch):
+            for y in range(0, output_height):
+                for x in range(0, output_width):
+                    for c in range(0, cannal):
+                        region = working_img[b, y*steps:y*steps+steps, x*steps:x*steps+steps, c]
+                        opa = np.max(region)
+                        output_image[b, y, x, c] = opa
+
+        self.on_this += 1
+        
+        teta = output_image.tolist()
+        self.Output[self.on_this] = teta
+
+    def poolimgMax_drev(self, steps=2):
+
+        working_img = np.array(self.Output_drev[-1])
+
+        batch, input_height, input_width, cannal = working_img.shape
+
+        find = 1
+
+        useg_height = (input_height - steps) // steps + 1
+        useg_width = (input_width - steps) // steps + 1
+
+        output_image = np.zeros((batch, input_height, input_width, cannal))
+
+        for b in range(0, batch):
+            for y in range(0, useg_height):
+                for x in range(0, useg_width):
+                    for c in range(0, cannal):
+                        region = working_img[b, y*steps:y*steps+steps, x*steps:x*steps+steps, c]
+                        maxy = np.max(region)
+                        wer = np.where(region == maxy)
+                        wer_list = list(zip(wer[0], wer[1]))
+                        output_image[b, y*steps+wer_list[0][0], x*steps+wer_list[0][1], c] = find
+                        find += 1
+        
+        teta = output_image.tolist()
+        self.Output_drev.append(teta)
 
     def output_img_shapere(self, input_image, stride):
 
@@ -433,6 +520,9 @@ class NN:
         self.optim_type = optimizer_name
         self.batch_num = batch_size
 
+        loss = []
+        all_loss = []
+
         for i in range(epoch):
             for point in range(0, len(self.X_data), batch_size):
                 self.add_output_layer()
@@ -445,15 +535,22 @@ class NN:
                 self.farword(x_batch)
 
                 self.batch_label = self.Output[-1]
+
+                loss.append(np.sum(self.batch_label))
  
                 self.optim_time = True
                 self.Output_drev = []
                 A_drev = self.binary_cros_entropy_drev(self.batch_label, self.y_batch)
-                self.Output_drev.append(A_drev)
+                self.Output_drev.append(A_drev.tolist())
                 self.kernel_D = []
 
                 self.on_this -= 1
-                self.Layers()
+                self.Layers() 
+            all_loss.append(np.sum(loss))
+
+        x_ll = np.zeros(all_loss)
+        plt.figure(figsize=(8, 6))
+        plt.plot(x_ll, all_loss, marker='o', label='Loss per Epoch')     
 
         for i in range(5):
             R = np.random.randint(1, len(self.X_data))
@@ -470,4 +567,4 @@ class NN:
 
 model = NN(data_set_photo)
 model.Creat()
-model.fit(10, 5, 'ADAM')
+model.fit(100, 5, 'ADAM')
