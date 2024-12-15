@@ -76,7 +76,7 @@ def one_how(labels, num_class):
 
 data_y_one_hot = one_how(data_y, n_clusters)
 
-plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
+#plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
 
 data_set1 = [data_x, data_y_one_hot]
 
@@ -120,6 +120,7 @@ def drev_mish(x):
 class NN:
     def __init__(self, data):
         self.X_data, self.Y_data = data[0], data[1]
+        self.Work_x, self.Work_Y = [], []
         self.on_this = 0
 
         self.batch_num = 1
@@ -137,10 +138,7 @@ class NN:
             self.Dense(None, None, "sigmoid")
             self.Dense(None, None, "relu")
             self.Dense(None, None, "relu")
-            self.Dense(None, None, "relu")
             self.Flatten()
-            self.conv2d(3, "relu")
-            self.poolingMax()
             self.conv2d(3, "relu")
             self.poolingMax()
             self.conv2d(3, "relu")
@@ -149,11 +147,8 @@ class NN:
         self.conv2d(3, "relu")
         self.poolingMax()
         self.conv2d(3, "relu")
-        self.poolingMax()
-        self.conv2d(3, "relu")
         wight_of_flatten = self.Flatten()
-        self.Dense(wight_of_flatten, 100 , "relu")
-        self.Dense(100, 40, 'relu')
+        self.Dense(wight_of_flatten, 40 , "relu")
         self.Dense(40, 20, "relu")
         self.Dense(20 , 2, "sigmoid")
 
@@ -450,9 +445,23 @@ class NN:
 
         self.Output[self.on_this] = X
         self.Layers()
+
+    def shuffel(self):
+        assert len(self.Y_data) == len(self.X_data)
+        indexs = np.arange(len(data_x))
+        np.random.shuffle(indexs)
+
+        self.Work_Y = np.array(self.Y_data)[indexs].tolist()
+        self.Work_x = np.array(self.X_data)[indexs].tolist()
         
     def binary_cros_entropy_drev(self, y_prob, y_targ):
-        return np.array(y_prob) - np.array(y_targ)
+        return (np.array(y_prob) - np.array(y_targ)).tolist()
+
+    def other_binary_cros_entropy_drev(self, y_prob, y_targ):
+        return ((np.array(y_prob) - np.array(y_targ))**2).tolist()
+    
+    def drev_other_binary_cros_entropy_drev(self, y_prob, y_targ):
+        return (2*np.array(y_targ)).tolist()
 
     def optim(self, optimaze_type, lerning_rate = 0.01):
         if optimaze_type == "SVM":
@@ -520,15 +529,26 @@ class NN:
         self.optim_type = optimizer_name
         self.batch_num = batch_size
 
-        loss = []
-        all_loss = []
+        fig, ax = plt.subplots()
+        line, = ax.plot([], [], 'b-', label="Loss progresion")  # Initial empty plot
+        ax.set_xlim(0, 10)  # Fixed x-axis range
+        ax.set_ylim(0, 10)  # Fixed y-axis range
+        ax.legend()
+
+        all_loss = [[],[]]
+        op = 0
+        self.num = 0
+
+        self.shuffel()
 
         for i in range(epoch):
-            for point in range(0, len(self.X_data), batch_size):
+            loss = []
+            for point in range(0, len(self.Work_x), batch_size):
+
                 self.add_output_layer()
 
-                x_batch = self.X_data[point:point + batch_size]
-                self.y_batch = self.Y_data[point:point + batch_size]
+                x_batch = self.Work_x[point:point + batch_size]
+                self.y_batch = self.Work_Y[point:point + batch_size]
 
                 self.batch_for_now = len(x_batch)
         
@@ -536,21 +556,38 @@ class NN:
 
                 self.batch_label = self.Output[-1]
 
-                loss.append(np.sum(self.batch_label))
+                loss.append(self.other_binary_cros_entropy_drev(self.batch_label, self.y_batch))
  
                 self.optim_time = True
                 self.Output_drev = []
-                A_drev = self.binary_cros_entropy_drev(self.batch_label, self.y_batch)
-                self.Output_drev.append(A_drev.tolist())
+                A_drev = self.drev_other_binary_cros_entropy_drev(self.batch_label, self.y_batch)
+                self.Output_drev.append(A_drev)
                 self.kernel_D = []
 
                 self.on_this -= 1
                 self.Layers() 
-            all_loss.append(np.sum(loss))
 
-        x_ll = np.zeros(all_loss)
-        plt.figure(figsize=(8, 6))
-        plt.plot(x_ll, all_loss, marker='o', label='Loss per Epoch')     
+            self.num += 1
+            
+            sublist_means = [np.mean(sublist) for sublist in loss]
+
+            all_loss[1].append(np.mean(sublist_means))
+            all_loss[0].append(op)
+            op += 1
+
+            print(self.num, "epoch past from :", epoch , "loss : ", all_loss[1][-1])
+
+            line.set_xdata(all_loss[0])
+            line.set_ydata(all_loss[1])
+
+            ax.set_xlim(0, max(all_loss[0]) + 1)
+            ax.set_ylim(min(all_loss[1]) - 1, max(all_loss[1]) + 1)
+
+            plt.draw()
+            plt.pause(0.001)
+        
+        plt.ioff()
+        plt.show()
 
         for i in range(5):
             R = np.random.randint(1, len(self.X_data))
@@ -567,4 +604,4 @@ class NN:
 
 model = NN(data_set_photo)
 model.Creat()
-model.fit(100, 5, 'ADAM')
+model.fit(300, 7, 'ADAM')
