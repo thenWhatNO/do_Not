@@ -471,7 +471,7 @@ class NN:
         return loss
     
     def categorical_cross_entropy_derivative(self, y_true, y_pred):
-        return y_pred - y_true 
+        return (np.array(y_pred) - np.array(y_true)).tolist()
     
 #/////////////// end of the loss function
 
@@ -587,7 +587,7 @@ class NN:
             all_loss[0].append(op)
             op += 1
 
-            print(self.num, "epoch past from :", epoch , "loss : ", all_loss[1])
+            print(self.num, "epoch past from :", epoch , "loss : ", all_loss[1][-1])
 
             line.set_xdata(all_loss[0])
             line.set_ydata(all_loss[1])
