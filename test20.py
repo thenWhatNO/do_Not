@@ -462,6 +462,18 @@ class NN:
     
     def drev_other_binary_cros_entropy_drev(self, y_prob, y_targ):
         return (2*np.array(y_targ)).tolist()
+    
+    def categorical_cross_entropy(self, y_true, y_targ):
+
+        epsilon = 1e-15
+        y_targ = np.clip(y_targ, epsilon, 1 - epsilon)  # Clip predictions
+        loss = -np.sum(y_true * np.log(y_targ)) / np.array(y_true).shape[0]
+        return loss
+    
+    def categorical_cross_entropy_derivative(self, y_true, y_pred):
+        return y_pred - y_true 
+    
+#/////////////// end of the loss function
 
     def optim(self, optimaze_type, lerning_rate = 0.01):
         if optimaze_type == "SVM":
@@ -556,11 +568,11 @@ class NN:
 
                 self.batch_label = self.Output[-1]
 
-                loss.append(self.other_binary_cros_entropy_drev(self.batch_label, self.y_batch))
+                loss.append(self.categorical_cross_entropy(self.y_batch, self.batch_label))
  
                 self.optim_time = True
                 self.Output_drev = []
-                A_drev = self.drev_other_binary_cros_entropy_drev(self.batch_label, self.y_batch)
+                A_drev = self.categorical_cross_entropy_derivative(self.y_batch ,self.batch_label)
                 self.Output_drev.append(A_drev)
                 self.kernel_D = []
 
@@ -575,7 +587,7 @@ class NN:
             all_loss[0].append(op)
             op += 1
 
-            print(self.num, "epoch past from :", epoch , "loss : ", all_loss[1][-1])
+            print(self.num, "epoch past from :", epoch , "loss : ", all_loss[1])
 
             line.set_xdata(all_loss[0])
             line.set_ydata(all_loss[1])
@@ -604,4 +616,4 @@ class NN:
 
 model = NN(data_set_photo)
 model.Creat()
-model.fit(300, 7, 'ADAM')
+model.fit(50, 7, 'ADAM')
