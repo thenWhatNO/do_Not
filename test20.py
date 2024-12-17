@@ -83,6 +83,14 @@ data_set1 = [data_x, data_y_one_hot]
 
 ###################### the other function #########################
 
+def softmax(logits):
+    logits_exp = np.exp(logits - np.max(logits, axis=-1, keepdims=True))
+    return logits_exp / np.sum(logits_exp, axis=-1, keepdims=True)
+
+def softmax_derivative(softmax_output):
+    out = np.array([1])
+    return out
+
 def sigmoid(x):
     x = np.array(x)
     if np.any(x > 300) or np.any(x < -300):
@@ -135,7 +143,7 @@ class NN:
 
     def Layers(self):
         if self.optim_time:
-            self.Dense(None, None, "sigmoid")
+            self.Dense(None, None, "softmax")
             self.Dense(None, None, "relu")
             self.Dense(None, None, "relu")
             self.Flatten()
@@ -150,7 +158,7 @@ class NN:
         wight_of_flatten = self.Flatten()
         self.Dense(wight_of_flatten, 40 , "relu")
         self.Dense(40, 20, "relu")
-        self.Dense(20 , 2, "sigmoid")
+        self.Dense(20 , 2, "softmax")
 
     def add_output_layer(self):
         self.Output = []
@@ -193,6 +201,8 @@ class NN:
             A = drev_mish(Z) if self.optim_time else mish(Z)
         if activation == "swish":
             A = drev_swish(Z) if self.optim_time else swish(Z)
+        if activation == "softmax":
+            A = softmax_derivative(Z) if self.optim_time else softmax(Z)
 
         return A.tolist()
 
@@ -448,7 +458,7 @@ class NN:
 
     def shuffel(self):
         assert len(self.Y_data) == len(self.X_data)
-        indexs = np.arange(len(data_x))
+        indexs = np.arange(len(self.X_data))
         np.random.shuffle(indexs)
 
         self.Work_Y = np.array(self.Y_data)[indexs].tolist()
@@ -601,7 +611,7 @@ class NN:
         plt.ioff()
         plt.show()
 
-        for i in range(5):
+        for i in range(10):
             R = np.random.randint(1, len(self.X_data))
             self.add_output_layer()
             test_x_data = np.array(self.X_data[R])
@@ -611,9 +621,12 @@ class NN:
             #print(test_x_data)
 
             self.farword(imgaaaa)
-            print(np.round(self.Output[-1]))
+            print(self.Output[-1][0])
             print(test_y_data)
+
+            plt.imshow(test_x_data)
+            plt.show()
 
 model = NN(data_set_photo)
 model.Creat()
-model.fit(50, 7, 'ADAM')
+model.fit(30, 7, 'ADAM')
