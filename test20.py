@@ -463,6 +463,17 @@ class NN:
 
         self.Work_Y = np.array(self.Y_data)[indexs].tolist()
         self.Work_x = np.array(self.X_data)[indexs].tolist()
+
+    def split(self, x_data, y_data):
+        split_num = 0.8
+        split_use = int(len(x_data) * split_num)
+
+        val_data_spli = x_data[split_use:]
+        val_data_split_y = y_data[split_use:]
+        train_data_split = x_data[:split_use]
+        train_data_split_y = y_data[:split_use]
+
+        return val_data_spli, val_data_split_y, train_data_split, train_data_split_y
         
     def binary_cros_entropy_drev(self, y_prob, y_targ):
         return (np.array(y_prob) - np.array(y_targ)).tolist()
@@ -546,31 +557,63 @@ class NN:
 
         self.kernel[self.on_this] -= lerning_rate * hat_m / (np.sqrt(hat_v) + epsilon).tolist()
 
+    def show_model_prog(self, loss, scatter, epoch, line, ax):
+        sublist_means = [np.mean(sublist) for sublist in loss]
 
+        if self.val_in_chat:
+            sublist_means = np.mean(loss)
+            self.color.append(0.5)
+        else:
+            self.num += 1
+            self.color.append(0)
+
+        self.all_loss[1].append(np.mean(sublist_means))
+        self.all_loss[0].append(self.op)
+        self.op += 1
+
+        print("val test -- " if self.val_in_chat else self.num, "epoch past from :", epoch , "loss : ", self.all_loss[1][-1])
+
+        line.set_xdata(self.all_loss[0])
+        line.set_ydata(self.all_loss[1])
+
+        scatter.set_offsets(list(zip(self.all_loss[0], self.all_loss[1])))
+        scatter.set_array(self.color)
+
+        ax.set_xlim(0, max(self.all_loss[0]) + 1)
+        ax.set_ylim(min(self.all_loss[1]) - 1, max(self.all_loss[1]) + 1)
+
+        plt.draw()
+        plt.pause(0.01)
+    
     def fit(self, epoch, batch_size, optimizer_name):
         self.optim_type = optimizer_name
         self.batch_num = batch_size
 
+        self.val_in_chat = False
+
         fig, ax = plt.subplots()
-        line, = ax.plot([], [], 'b-', label="Loss progresion")  # Initial empty plot
+        self.color = []
+        line, = ax.plot([], [], linestyle='-', color='gray', label="Loss progresion")  # Initial empty plot
+        scatter = ax.scatter([], [], c=[], cmap='viridis')
         ax.set_xlim(0, 10)  # Fixed x-axis range
         ax.set_ylim(0, 10)  # Fixed y-axis range
         ax.legend()
 
-        all_loss = [[],[]]
-        op = 0
+        self.all_loss = [[],[]]
+        self.op = 0
         self.num = 0
 
         self.shuffel()
+        self.val_x, self.val_y, self.train_x, self.train_y = self.split(self.Work_x, self.Work_Y)
 
         for i in range(epoch):
             loss = []
-            for point in range(0, len(self.Work_x), batch_size):
+            for point in range(0, len(self.train_x), batch_size):
 
                 self.add_output_layer()
 
-                x_batch = self.Work_x[point:point + batch_size]
-                self.y_batch = self.Work_Y[point:point + batch_size]
+                x_batch = self.train_x[point:point + batch_size]
+                self.y_batch = self.train_y[point:point + batch_size]
 
                 self.batch_for_now = len(x_batch)
         
@@ -589,24 +632,25 @@ class NN:
                 self.on_this -= 1
                 self.Layers() 
 
-            self.num += 1
-            
-            sublist_means = [np.mean(sublist) for sublist in loss]
+#/////////////////////////////////////////////////////matplot after the main train epoch
+            self.show_model_prog(loss, scatter, epoch, line, ax)
 
-            all_loss[1].append(np.mean(sublist_means))
-            all_loss[0].append(op)
-            op += 1
+            self.add_output_layer()
+            val_test = []
+            val_test_y = []
+            self.val_in_chat = True
+            for num in range(0, batch_size):
+                R = np.random.randint(0, len(self.val_x))
+                
+                val_test.append(self.val_x[R])
+                val_test_y.append(self.val_y[R])
 
-            print(self.num, "epoch past from :", epoch , "loss : ", all_loss[1][-1])
+            self.farword(val_test)
+            loss.append(self.categorical_cross_entropy(val_test_y, self.Output[-1]))
 
-            line.set_xdata(all_loss[0])
-            line.set_ydata(all_loss[1])
+            self.show_model_prog(loss, scatter, epoch, line, ax)
+            self.val_in_chat = False
 
-            ax.set_xlim(0, max(all_loss[0]) + 1)
-            ax.set_ylim(min(all_loss[1]) - 1, max(all_loss[1]) + 1)
-
-            plt.draw()
-            plt.pause(0.001)
         
         plt.ioff()
         plt.show()
@@ -629,4 +673,4 @@ class NN:
 
 model = NN(data_set_photo)
 model.Creat()
-model.fit(30, 7, 'ADAM')
+model.fit(3, 7, 'ADAM')
