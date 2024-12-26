@@ -196,7 +196,7 @@ class NN:
         wight_of_flatten = self.Flatten()
         self.Dense(wight_of_flatten, 40 , "relu")
         self.Dense(40, 20, "relu")
-        self.Dense(20 , 2, "softmax")
+        self.Dense(20 , 26, "softmax")
 
     def add_output_layer(self):
         self.Output = []
@@ -709,6 +709,6 @@ class NN:
             plt.imshow(test_x_data)
             plt.show()
 
-model = NN(data_set_photo)
+model = NN(data_latine_digets)
 model.Creat()
-model.fit(3, 7, 'ADAM')
+model.fit(30, 7, 'ADAM')
