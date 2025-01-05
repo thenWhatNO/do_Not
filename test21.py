@@ -2,18 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
+import os
 
+path = "data_2\object detect"
 
-input_image = [[[1,1],[1,1],[1,1],[1,1]],
-               [[1,1],[1,1],[1,1],[1,1]],
-               [[1,1],[1,1],[1,1],[1,1]],
-               [[1,1],[1,1],[1,1],[1,1]],]
-
-
-# // woek on a multy batch conv algoritem look in chat GPt
-print(np.shape(input_image))
-
-if 3 <= np.shape(input_image):
-    cannals_num = len(input_image[2])
-
-print(cannals_num)
+for root, dirt, files in os.walk(path):
+    for file in files:
+        print(os.path.join(root, file))

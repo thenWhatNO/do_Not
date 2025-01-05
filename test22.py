@@ -5,20 +5,20 @@ from PIL import Image
 
 color = True
 
-data_path = "data_2/latin_label.csv"
+data_path = "data_2/object_label.csv"
 
 df = pd.read_csv(data_path)
 images= df['image']
 labels = df['targ']
 
-one_imag = Image.open('data_2/latin_data_jpg/' + images[0])
+one_imag = Image.open(images[0])
 
 img_array_for_show = []
 img_array = []
 
 for i in images:
-    print('data_2/latin_data_jpg/'+ i)
-    img = Image.open('data_2/latin_data_jpg/'+ i)
+    print(i)
+    img = Image.open(i)
     img_resize = img.resize((30,30))
     if color:
         convort = img_resize.convert('L')
@@ -36,6 +36,6 @@ for i in images:
 def one_how(labels, num_class):
     return np.eye(num_class)[labels.astype(int)].tolist()
 
-one_label = one_how(labels, 26)
+one_label = one_how(labels, 3)
 
 data_set_photo = [img_array_for_show, one_label]

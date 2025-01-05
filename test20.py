@@ -19,19 +19,57 @@ y_point = y_grid.flatten()
 
 color = True
 
-data_path = "plenet_data.csv"
+# data_path = "plenet_data.csv"
+
+# df = pd.read_csv(data_path)
+# images= df['image']
+# labels = df['targ']
+
+# one_imag = Image.open('data' + images[0])
+
+# img_array_for_show = []
+# img_array = []
+
+# for i in images:
+#     img = Image.open('data'+ i)
+#     img_resize = img.resize((30,30))
+#     if color:
+#         convort = img_resize.convert('L')
+#     img_2_array = np.array(convort)
+#     if color:
+#         img_clear = np.where(img_2_array > 50.0, 1.0 ,100.0)
+#         cannal_up = img_clear[:, :, np.newaxis]
+#     img_one_shot = cannal_up.reshape(1, -1)
+#         # imf2float = np.zeros_like(cannal_up)
+#         # for i, img in enumerate(cannal_up):
+#         #     imf2float[i] = float(img)
+#     #img_array.append(img_one_shot[0])
+#     img_array_for_show.append(cannal_up.tolist())
+
+# def one_how(labels, num_class):
+#     return np.eye(num_class)[labels.astype(int)].tolist()
+
+# one_label = one_how(labels, 2)
+
+# data_set_photo = [img_array_for_show, one_label]
+
+#//////////////////////////////////// ob dataset
+
+
+data_path = "data_2/object_label.csv"
 
 df = pd.read_csv(data_path)
 images= df['image']
 labels = df['targ']
 
-one_imag = Image.open('data' + images[0])
+one_imag = Image.open(images[0])
 
 img_array_for_show = []
 img_array = []
 
 for i in images:
-    img = Image.open('data'+ i)
+    print(i)
+    img = Image.open(i)
     img_resize = img.resize((30,30))
     if color:
         convort = img_resize.convert('L')
@@ -49,74 +87,74 @@ for i in images:
 def one_how(labels, num_class):
     return np.eye(num_class)[labels.astype(int)].tolist()
 
-one_label = one_how(labels, 2)
+one_label = one_how(labels, 3)
 
 data_set_photo = [img_array_for_show, one_label]
 
-#////////////////////////////////////
+#///////////////////////////////////
 
 
-data_path = "data_2/latin_label.csv"
+# data_path = "data_2/latin_label.csv"
 
-df = pd.read_csv(data_path)
-images= df['image']
-labels = df['targ']
+# df = pd.read_csv(data_path)
+# images= df['image']
+# labels = df['targ']
 
-one_imag = Image.open('data_2/latin_data_jpg/' + images[0])
+# one_imag = Image.open('data_2/latin_data_jpg/' + images[0])
 
-img_array_for_show = []
-img_array = []
+# img_array_for_show = []
+# img_array = []
 
-for i in images:
-    print('data_2/latin_data_jpg/'+ i)
-    img = Image.open('data_2/latin_data_jpg/'+ i)
-    img_resize = img.resize((30,30))
-    if color:
-        convort = img_resize.convert('L')
-    img_2_array = np.array(convort)
-    if color:
-        img_clear = np.where(img_2_array > 50.0, 1.0 ,100.0)
-        cannal_up = img_clear[:, :, np.newaxis]
-    img_one_shot = cannal_up.reshape(1, -1)
-        # imf2float = np.zeros_like(cannal_up)
-        # for i, img in enumerate(cannal_up):
-        #     imf2float[i] = float(img)
-    #img_array.append(img_one_shot[0])
-    img_array_for_show.append(cannal_up.tolist())
+# for i in images:
+#     print('data_2/latin_data_jpg/'+ i)
+#     img = Image.open('data_2/latin_data_jpg/'+ i)
+#     img_resize = img.resize((30,30))
+#     if color:
+#         convort = img_resize.convert('L')
+#     img_2_array = np.array(convort)
+#     if color:
+#         img_clear = np.where(img_2_array > 50.0, 1.0 ,100.0)
+#         cannal_up = img_clear[:, :, np.newaxis]
+#     img_one_shot = cannal_up.reshape(1, -1)
+#         # imf2float = np.zeros_like(cannal_up)
+#         # for i, img in enumerate(cannal_up):
+#         #     imf2float[i] = float(img)
+#     #img_array.append(img_one_shot[0])
+#     img_array_for_show.append(cannal_up.tolist())
 
-def one_how(labels, num_class):
-    return np.eye(num_class)[labels.astype(int)].tolist()
+# def one_how(labels, num_class):
+#     return np.eye(num_class)[labels.astype(int)].tolist()
 
-one_label = one_how(labels, 26)
+# one_label = one_how(labels, 26)
 
-data_latine_digets = [img_array_for_show, one_label]
+# data_latine_digets = [img_array_for_show, one_label]
 
 
 #///////////////////
 
-n_samples_per_cluster = 50  
-n_features = 2        
-n_clusters = 4
+# n_samples_per_cluster = 50  
+# n_features = 2        
+# n_clusters = 4
 
-means = [(-2, -2), (2, 2), (-2, 2), (2, -2)]
-std_devs = [0.5, 0.5, 0.5, 0.5]
+# means = [(-2, -2), (2, 2), (-2, 2), (2, -2)]
+# std_devs = [0.5, 0.5, 0.5, 0.5]
 
-data_x = np.zeros((n_samples_per_cluster * n_clusters, n_features))
-data_y = np.zeros(n_samples_per_cluster * n_clusters)
+# data_x = np.zeros((n_samples_per_cluster * n_clusters, n_features))
+# data_y = np.zeros(n_samples_per_cluster * n_clusters)
 
-for i in range(n_clusters):
-    data_x[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = np.random.normal(
-        loc=means[i], scale=std_devs[i], size=(n_samples_per_cluster, n_features))
-    data_y[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = i
+# for i in range(n_clusters):
+#     data_x[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = np.random.normal(
+#         loc=means[i], scale=std_devs[i], size=(n_samples_per_cluster, n_features))
+#     data_y[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = i
 
-def one_how(labels, num_class):
-    return np.eye(num_class)[labels.astype(int)]
+# def one_how(labels, num_class):
+#     return np.eye(num_class)[labels.astype(int)]
 
-data_y_one_hot = one_how(data_y, n_clusters)
+# data_y_one_hot = one_how(data_y, n_clusters)
 
-#plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
+# #plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
 
-data_set1 = [data_x, data_y_one_hot]
+# data_set1 = [data_x, data_y_one_hot]
 
 
 ###################### the other function #########################
@@ -196,7 +234,7 @@ class NN:
         wight_of_flatten = self.Flatten()
         self.Dense(wight_of_flatten, 40 , "relu")
         self.Dense(40, 20, "relu")
-        self.Dense(20 , 2, "softmax")
+        self.Dense(20 , 3, "softmax")
 
     def add_output_layer(self):
         self.Output = []
@@ -711,4 +749,4 @@ class NN:
 
 model = NN(data_set_photo)
 model.Creat()
-model.fit(3, 7, 'ADAM')
+model.fit(10, 7, 'ADAM')
