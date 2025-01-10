@@ -226,9 +226,9 @@ class NN:
             self.conv2d(3, "relu")
             self.optim_time = False
             return
-        self.conv2d(3, "relu")
+        self.conv2d(3, "relu", filter_num=3)
         self.poolingMax()
-        self.conv2d(3, "relu")
+        self.conv2d(3, "relu", filter_num=3)
         wight_of_flatten = self.Flatten()
         self.Dense(wight_of_flatten, 40 , "relu")
         self.Dense(40, 20, "relu")
@@ -261,10 +261,15 @@ class NN:
         self.Wight.append(wight.tolist())
         self.Bias.append(bias.tolist())
 
-    def creat_kernel(self, size):
-        kernel = np.random.randn(size, size, self.channal).tolist()
+    def creat_kernel(self, size, filters):
 
-        self.kernel.append(kernel)
+        filter_and_kernel = []
+        for i in range(filters):
+            kernel = np.random.randn(size, size, self.channal).tolist()
+
+            filter_and_kernel.append(kernel)
+
+        self.kernel.append(filter_and_kernel)
 
     def Activeit(self, Z, activation):
         if activation == "relu": 
@@ -277,6 +282,7 @@ class NN:
             A = drev_swish(Z) if self.optim_time else swish(Z)
         if activation == "softmax":
             A = softmax_derivative(Z) if self.optim_time else softmax(Z)
+
 
         return A.tolist()
 
@@ -308,7 +314,7 @@ class NN:
             
             self.Output[self.on_this].append(A[0])
 
-    def conv2d(self, kernel_size, activition_func, stride=1, padding=0):
+    def conv2d(self, kernel_size, activition_func, filter_num = 1, stride=1, padding=0):
 
         if self.Creat_time:
             self.count_layers_num += 1
@@ -316,7 +322,7 @@ class NN:
             if not hasattr(self, "kernel"):
                 self.kernel = []
             self.kernel_org_shape = 0
-            self.creat_kernel(kernel_size)
+            self.creat_kernel(kernel_size, filter_num)
             self.conv_optim = False
 
             self.Wight.append([0])
@@ -325,7 +331,7 @@ class NN:
             input_image = self.test_img
 
             input_height, input_width, channals = np.shape(input_image)
-            kernel_height, kernel_width, _= np.shape(self.kernel[self.on_this])
+            filters, kernel_height, kernel_width, _ = np.shape(self.kernel[self.on_this])
 
             output_height = (input_height - kernel_height) // stride + 1
             output_width = (input_width - kernel_width) // stride + 1
@@ -377,7 +383,7 @@ class NN:
         
         #?///////////////////////////////////////
 
-        kernel_height, kernel_width, cannals= np.shape(self.kernel[self.on_this])
+        filters, kernel_height, kernel_width, cannals= np.shape(self.kernel[self.on_this])
 
         if padding > 0:
             input_image = np.pad(self.Output[self.on_this][-1], ((padding, padding), (padding, padding)), mode='constant').tolist()
@@ -387,13 +393,13 @@ class NN:
         batch_one, output_height, output_width, channels_img = np.shape(output)
 
         for z in range(0, batch_one):
-            for y in range(0, output_height):
-                for x in range(0, output_width):
-                    for o in range(0, channels_img):
+            for f in range(0, filters):
+                for y in range(0, output_height):
+                    for x in range(0, output_width):
                         h_start, w_start = y * stride, x * stride
                         h_end, w_end = h_start + kernel_height, w_start + kernel_width
                         region = input_image[z, h_start:h_end, w_start:w_end, :]
-                        output[z][y][x][o] = np.sum(region * kernel_for_work[:, :, o])
+                        output[z][y][x][f] = np.sum(region * kernel_for_work[f, :, :, :])
 
         self.on_this += 1
         self.Z_output[self.on_this] = output
@@ -480,12 +486,12 @@ class NN:
     def output_img_shapere(self, input_image, stride):
 
         batch_size, input_height, input_width, cannals_num = np.shape(input_image)
-        kernel_height, kernel_width, input_chanells= np.shape(self.kernel[self.on_this])
+        filters, kernel_height, kernel_width, input_chanells= np.shape(self.kernel[self.on_this])
 
         output_height = (input_height - kernel_height) // stride + 1
         output_width = (input_width - kernel_width) // stride + 1
 
-        shape_new = (batch_size, output_height, output_width, self.channal)
+        shape_new = (batch_size, output_height, output_width, filters)
 
         output = np.zeros(shape_new).tolist()
 
@@ -745,6 +751,6 @@ class NN:
             plt.imshow(test_x_data)
             plt.show()
 
-model = NN(data_latine_digets)
+model = NN(data_set_photo_num_ob)
 model.Creat()
 model.fit(30, 7, 'ADAM')
