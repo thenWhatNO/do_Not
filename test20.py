@@ -67,7 +67,6 @@ img_array_for_show = []
 img_array = []
 
 for i in images:
-    print(i)
     img = Image.open(i)
     img_resize = img.resize((30,30))
     if color:
@@ -211,6 +210,7 @@ class NN:
 
         self.Wight = []
         self.Bias = []
+        self.kernel = []
 
         self.Output = []
         self.Z_output = []
@@ -319,8 +319,6 @@ class NN:
         if self.Creat_time:
             self.count_layers_num += 1
             self.is_convFirst = True
-            if not hasattr(self, "kernel"):
-                self.kernel = []
             self.kernel_org_shape = 0
             self.creat_kernel(kernel_size, filter_num)
             self.conv_optim = False
@@ -347,7 +345,7 @@ class NN:
         if self.optim_time:
             self.kernel_D.append([])
             filter, kernel_height, kernel_width, channals_k= np.shape(kernel_for_work)
-            batch_size, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
+            batch_size, grid_cell, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
 
             _,_,_,channels = np.shape(input_image)
 
@@ -392,9 +390,8 @@ class NN:
         if padding > 0:
             input_image = np.pad(self.Output[self.on_this][-1], ((padding, padding), (padding, padding)), mode='constant').tolist()
     
-    
         output = self.output_img_shapere(input_image, stride)
-        batch_one, output_height, output_width, channels_img = np.shape(output)
+        batch_one, grid_cell, output_height, output_width, channels_img = np.shape(output)
 
         for z in range(0, batch_one):
             for f in range(0, filters):
@@ -440,12 +437,12 @@ class NN:
 
         working_img = np.array(self.Output[self.on_this])
 
-        batch, input_height, input_width, cannal = working_img.shape
+        batch, grid_cell, input_height, input_width, cannal = working_img.shape
 
         output_height = (input_height - steps) // steps + 1
         output_width = (input_width - steps) // steps + 1
 
-        output_image = np.zeros((batch, output_height, output_width, cannal))
+        output_image = np.zeros((batch, grid_cell, output_height, output_width, cannal))
 
         for b in range(0, batch):
             for y in range(0, output_height):
@@ -464,14 +461,14 @@ class NN:
 
         working_img = np.array(self.Output_drev[-1])
 
-        batch, input_height, input_width, cannal = working_img.shape
+        batch, grid_cell, input_height, input_width, cannal = working_img.shape
 
         find = 1
 
         useg_height = (input_height - steps) // steps + 1
         useg_width = (input_width - steps) // steps + 1
 
-        output_image = np.zeros((batch, input_height, input_width, cannal))
+        output_image = np.zeros((batch, grid_cell, input_height, input_width, cannal))
 
         for b in range(0, batch):
             for y in range(0, useg_height):
@@ -489,7 +486,7 @@ class NN:
 
     def output_img_shapere(self, input_image, stride):
 
-        batch_size, input_height, input_width, cannals_num = np.shape(input_image)
+        batch_size, grid_cell, input_height, input_width, cannals_num = np.shape(input_image)
         filters, kernel_height, kernel_width, input_chanells= np.shape(self.kernel[self.on_this])
 
         output_height = (input_height - kernel_height) // stride + 1
@@ -500,6 +497,29 @@ class NN:
         output = np.zeros(shape_new).tolist()
 
         return output
+    
+    def grid_spliter(self, X, H_aplit, V_split):
+        boxes = []
+
+        img_in_work = np.array(X)
+
+        batch_size, input_height, input_width, cannals_num =  np.shape(img_in_work)
+
+        H_jump = int(input_height / H_aplit)
+        V_jump = int(input_width / V_split)
+
+        for b in range(0, batch_size):
+            boxes.append([])
+            for h in range(0, input_height, H_jump):
+                for v in range(0, input_width, V_jump):
+                    h_end, v_end = h + H_jump, v + V_jump
+
+                    box = img_in_work[b, h:h_end, v:v_end, :]
+                    boxes[b].append(box)
+        
+        teta = np.array(boxes).tolist()
+        return teta
+
 
     def Flatten(self):
         if self.Creat_time:
@@ -700,8 +720,10 @@ class NN:
                 self.y_batch = self.train_y[point:point + batch_size]
 
                 self.batch_for_now = len(x_batch)
+
+                grided_out = self.grid_spliter(x_batch, 3, 3) # need mostly for object detection
         
-                self.farword(x_batch)
+                self.farword(grided_out)
 
                 self.batch_label = self.Output[-1]
 

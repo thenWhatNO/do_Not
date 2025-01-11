@@ -3,14 +3,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
 
-data_path = "data_2/object_label_cords.csv"
+test = np.random.randn(2,4,4,6)
 
-df = pd.read_csv(data_path)
-images= df['image']
-index = df['ind']
-top_l = df['top_L']
-top_l2 = df['top_L2']
-down_r = df['dotom_R']
-down_r2 = df['dotom_R2']
+for a in range(0, 4, 2):
+    for s in range(0, 4, 2):
+        test[:, a:a+2, s:s+2, :] = test[:, a:a+2, s:s+2, :] * 0
 
-print(df.head())
+
+teta = test.tolist()
+print(teta)
