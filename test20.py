@@ -232,7 +232,7 @@ class NN:
         wight_of_flatten = self.Flatten()
         self.Dense(wight_of_flatten, 40 , "relu")
         self.Dense(40, 20, "relu")
-        self.Dense(20 , 26, "softmax")
+        self.Dense(20 , 3, "softmax")
 
     def add_output_layer(self):
         self.Output = []
@@ -336,7 +336,7 @@ class NN:
             output_height = (input_height - kernel_height) // stride + 1
             output_width = (input_width - kernel_width) // stride + 1
 
-            output_test = np.zeros((output_width, output_height, channals)).tolist()
+            output_test = np.zeros((output_width, output_height, filter_num)).tolist()
             self.test_img = output_test
             self.on_this += 1
             return
@@ -346,8 +346,10 @@ class NN:
 
         if self.optim_time:
             self.kernel_D.append([])
-            kernel_height, kernel_width, channals_k= np.shape(kernel_for_work)
+            filter, kernel_height, kernel_width, channals_k= np.shape(kernel_for_work)
             batch_size, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
+
+            _,_,_,channels = np.shape(input_image)
 
             activ_drev = np.array(self.Activeit(self.Z_output[self.on_this+1], activition_func))
 
@@ -359,17 +361,19 @@ class NN:
             D_K = np.zeros_like(self.kernel[self.on_this])
 
             for z in range(0, batch_size):
-                for y in range(0, gradient_height):
-                    for x in range(0, gradient_width):
-                        for o in range(0, channals_c):
-                            h_start, w_start = y * stride, x * stride
-                            h_end, w_end = h_start + kernel_height, w_start + kernel_height
+                for f in range(0, filter):
+                    for y in range(0, gradient_height):
+                        for x in range(0, gradient_width):
+                            for c in range(0, channels):
+                                h_start, w_start = y * stride, x * stride
+                                h_end, w_end = h_start + kernel_height, w_start + kernel_height
 
-                            region = work_OUT_dre[z,h_start:h_end,w_start:w_end, o]
+                                region = work_OUT_dre[z,h_start:h_end,w_start:w_end, c]
+                                region = region.reshape(np.shape(D_K[f, :, :, :]))
 
-                            D_K[:, :, o] += region * A_D_out[z,y,x,o] * activ_drev[z,y,x,o]
+                                D_K[f, :, :, :] += region * A_D_out[z,y,x,f] * activ_drev[z,y,x,f]
 
-                            D_A[z, h_start:h_end, w_start:w_end, o] += kernel_wpok[:, :, o] * A_D_out[z,y,x,o]
+                                D_A[z, h_start:h_end, w_start:w_end, :] += kernel_wpok[f, :, :, :] * A_D_out[z,y,x,f]
 
             self.kernel_D[-1] = D_K.tolist()
             teta = D_A.tolist()
@@ -478,7 +482,7 @@ class NN:
                         wer = np.where(region == maxy)
                         wer_list = list(zip(wer[0], wer[1]))
                         output_image[b, y*steps+wer_list[0][0], x*steps+wer_list[0][1], c] = find
-                        find += 1
+                    find += 1
         
         teta = output_image.tolist()
         self.Output_drev.append(teta)
