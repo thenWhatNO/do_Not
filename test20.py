@@ -339,15 +339,15 @@ class NN:
             self.on_this += 1
             return
         
-        input_image = np.array(self.Output[self.on_this])
+        shapy = np.array(self.Output[self.on_this]).shape
+        
+        input_image = np.array(self.Output[self.on_this]).reshape(shapy[0]*shapy[1], shapy[2], shapy[3], shapy[4])
         kernel_for_work = np.array(self.kernel[self.on_this])
 
         if self.optim_time:
             self.kernel_D.append([])
             filter, kernel_height, kernel_width, channals_k= np.shape(kernel_for_work)
-            batch_size, grid_cell, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
-
-            _,_,_,channels = np.shape(input_image)
+            batch_size, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
 
             activ_drev = np.array(self.Activeit(self.Z_output[self.on_this+1], activition_func))
 
@@ -358,20 +358,17 @@ class NN:
             D_A = np.zeros_like(input_image)
             D_K = np.zeros_like(self.kernel[self.on_this])
 
-            for z in range(0, batch_size):
-                for f in range(0, filter):
-                    for y in range(0, gradient_height):
-                        for x in range(0, gradient_width):
-                            for c in range(0, channels):
-                                h_start, w_start = y * stride, x * stride
-                                h_end, w_end = h_start + kernel_height, w_start + kernel_height
+            for f in range(0, filter):
+                for y in range(0, gradient_height):
+                    for x in range(0, gradient_width):
+                        h_start, w_start = y * stride, x * stride
+                        h_end, w_end = h_start + kernel_height, w_start + kernel_height
 
-                                region = work_OUT_dre[z,h_start:h_end,w_start:w_end, c]
-                                region = region.reshape(np.shape(D_K[f, :, :, :]))
+                        region = work_OUT_dre[:,h_start:h_end,w_start:w_end, f]
+                        teta = (A_D_out[:,y,x,f] * activ_drev[:,y,x,f])
 
-                                D_K[f, :, :, :] += region * A_D_out[z,y,x,f] * activ_drev[z,y,x,f]
-
-                                D_A[z, h_start:h_end, w_start:w_end, :] += kernel_wpok[f, :, :, :] * A_D_out[z,y,x,f]
+                        D_K[f, :, :, :] += np.sum(region[:,:,:,None] * teta[:,None,None,None], axis=0)
+                        D_A[:, h_start:h_end, w_start:w_end, :] += kernel_wpok[f, :, :, :] * teta[:, None, None, None]
 
             self.kernel_D[-1] = D_K.tolist()
             teta = D_A.tolist()
@@ -390,21 +387,31 @@ class NN:
         if padding > 0:
             input_image = np.pad(self.Output[self.on_this][-1], ((padding, padding), (padding, padding)), mode='constant').tolist()
     
-        output = self.output_img_shapere(input_image, stride)
-        batch_one, grid_cell, output_height, output_width, channels_img = np.shape(output)
+        output = np.array(self.output_img_shapere(input_image, stride))
+        batch_one, output_height, output_width, channels_img = np.shape(output)
 
-        for z in range(0, batch_one):
-            for f in range(0, filters):
-                for y in range(0, output_height):
-                    for x in range(0, output_width):
-                        h_start, w_start = y * stride, x * stride
-                        h_end, w_end = h_start + kernel_height, w_start + kernel_width
-                        region = input_image[z, h_start:h_end, w_start:w_end, :]
-                        output[z][y][x][f] = np.sum(region * kernel_for_work[f, :, :, :])
+        for y in range(0, output_height):
+            for x in range(0, output_width):
+                h_start, w_start = y * stride, x * stride
+                h_end, w_end = h_start + kernel_height, w_start + kernel_width
+                region = input_image[:, h_start:h_end, w_start:w_end, :]
+
+                if 1 != region.shape[-1]:
+                    region = np.split(region, input_image.shape[-1], axis=3)
+
+                    temp_output = np.zeros(output[:, y, x, :].shape) 
+
+                    for r, k in zip(region, kernel_for_work):
+                        temp_output += np.tensordot(r, kernel_for_work, axes=([1, 2, 3], [1, 2, 3]))
+
+                    output[:, y, x, :] = temp_output
+
+                else:
+                    output[:, y, x, :] = np.tensordot(region, kernel_for_work, axes=([1, 2, 3], [1, 2, 3]))
 
         self.on_this += 1
-        self.Z_output[self.on_this] = output
-        A = self.Activeit(np.array(output), activition_func)
+        self.Z_output[self.on_this] = output.reshape(shapy[0],shapy[1],output_height,output_width,channels_img).tolist()
+        A = self.Activeit(np.array(self.Z_output[self.on_this]), activition_func)
         self.Output[self.on_this] = A
 
     def poolingMax(self, steps=2):
@@ -435,26 +442,26 @@ class NN:
         
             return
 
-        working_img = np.array(self.Output[self.on_this])
+        shapy = np.array(self.Output[self.on_this]).shape
 
-        batch, grid_cell, input_height, input_width, cannal = working_img.shape
+        working_img = np.array(self.Output[self.on_this]).reshape(shapy[0]*shapy[1], shapy[2], shapy[3], shapy[4])
+
+        batch, input_height, input_width, cannal = working_img.shape
 
         output_height = (input_height - steps) // steps + 1
         output_width = (input_width - steps) // steps + 1
 
-        output_image = np.zeros((batch, grid_cell, output_height, output_width, cannal))
+        output_image = np.zeros((batch, output_height, output_width, cannal))
 
-        for b in range(0, batch):
-            for y in range(0, output_height):
-                for x in range(0, output_width):
-                    for c in range(0, cannal):
-                        region = working_img[b, y*steps:y*steps+steps, x*steps:x*steps+steps, c]
-                        opa = np.max(region)
-                        output_image[b, y, x, c] = opa
+        for y in range(0, output_height):
+            for x in range(0, output_width):
+                region = working_img[:, y*steps:y*steps+steps, x*steps:x*steps+steps, :]
+                opa = np.max(region)
+                output_image[:, y, x, :] = opa
 
         self.on_this += 1
         
-        teta = output_image.tolist()
+        teta = output_image.reshape(shapy[0], shapy[1], output_height, output_width, shapy[4]).tolist()
         self.Output[self.on_this] = teta
 
     def poolimgMax_drev(self, steps=2):
@@ -470,23 +477,21 @@ class NN:
 
         output_image = np.zeros((batch, grid_cell, input_height, input_width, cannal))
 
-        for b in range(0, batch):
-            for y in range(0, useg_height):
-                for x in range(0, useg_width):
-                    for c in range(0, cannal):
-                        region = working_img[b, y*steps:y*steps+steps, x*steps:x*steps+steps, c]
-                        maxy = np.max(region)
-                        wer = np.where(region == maxy)
-                        wer_list = list(zip(wer[0], wer[1]))
-                        output_image[b, y*steps+wer_list[0][0], x*steps+wer_list[0][1], c] = find
-                    find += 1
+        for y in range(0, useg_height):
+            for x in range(0, useg_width):
+                region = working_img[:, y*steps:y*steps+steps, x*steps:x*steps+steps, :]
+                maxy = np.max(region)
+                wer = np.where(region == maxy)
+                wer_list = list(zip(wer[0], wer[1]))
+                output_image[:, y*steps+wer_list[0][0], x*steps+wer_list[0][1], :] = find
+            find += 1
         
         teta = output_image.tolist()
         self.Output_drev.append(teta)
 
     def output_img_shapere(self, input_image, stride):
 
-        batch_size, grid_cell, input_height, input_width, cannals_num = np.shape(input_image)
+        batch_size, input_height, input_width, cannals_num = np.shape(input_image)
         filters, kernel_height, kernel_width, input_chanells= np.shape(self.kernel[self.on_this])
 
         output_height = (input_height - kernel_height) // stride + 1
@@ -519,7 +524,6 @@ class NN:
         
         teta = np.array(boxes).tolist()
         return teta
-
 
     def Flatten(self):
         if self.Creat_time:
@@ -756,7 +760,6 @@ class NN:
 
             self.show_model_prog(loss, scatter, epoch, line, ax)
             self.val_in_chat = False
-
         
         plt.ioff()
         plt.show()
