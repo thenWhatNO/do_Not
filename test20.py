@@ -74,7 +74,7 @@ for i in images:
     img_2_array = np.array(convort)
     if color:
         img_clear = np.where(img_2_array > 50.0, 1.0 ,100.0)
-        cannal_up = img_clear[:, :, np.newaxis]
+        cannal_up = img_clear[:, :, None]
     img_one_shot = cannal_up.reshape(1, -1)
         # imf2float = np.zeros_like(cannal_up)
         # for i, img in enumerate(cannal_up):
@@ -204,6 +204,8 @@ class NN:
         self.Work_x, self.Work_Y = [], []
         self.on_this = 0
 
+        self.is_grid = False
+
         self.batch_num = 1
         self.filter = 1
         self.channal = 1
@@ -244,7 +246,10 @@ class NN:
         self.Z_output.pop()
 
     def Creat(self):
-        self.test_img = np.zeros((np.shape(self.X_data[0]))).tolist()
+        image = self.grid_spliter(self.X_data[0], 3, 3)
+        self.is_grid = False
+
+        self.test_img = np.zeros((np.shape(image[0]))).tolist()
 
         self.count_layers_num = 0
 
@@ -270,6 +275,9 @@ class NN:
             filter_and_kernel.append(kernel)
 
         self.kernel.append(filter_and_kernel)
+
+        self.Wight.append([0])
+        self.Bias.append([0])
 
     def Activeit(self, Z, activation):
         if activation == "relu": 
@@ -323,37 +331,29 @@ class NN:
             self.creat_kernel(kernel_size, filter_num)
             self.conv_optim = False
 
-            self.Wight.append([0])
-            self.Bias.append([0])
+            input_image = np.array(self.test_img)
 
-            input_image = self.test_img
-
-            input_height, input_width, channals = np.shape(input_image)
             filters, kernel_height, kernel_width, _ = np.shape(self.kernel[self.on_this])
 
-            output_height = (input_height - kernel_height) // stride + 1
-            output_width = (input_width - kernel_width) // stride + 1
+            new_shape = self.output_img_shapere(input_image, stride, kernel_height, kernel_width, filters)
 
-            output_test = np.zeros((output_width, output_height, filter_num)).tolist()
+            output_test = np.zeros_like((new_shape)).tolist()
             self.test_img = output_test
             self.on_this += 1
             return
-        
-        shapy = np.array(self.Output[self.on_this]).shape
-        
-        input_image = np.array(self.Output[self.on_this]).reshape(shapy[0]*shapy[1], shapy[2], shapy[3], shapy[4])
+                
+        input_image = np.array(self.Output[self.on_this])
         kernel_for_work = np.array(self.kernel[self.on_this])
+        kernel_for_work = kernel_for_work[None,:,:,:,:] # this for the shape testing in grid status
 
         if self.optim_time:
             self.kernel_D.append([])
-            filter, kernel_height, kernel_width, channals_k= np.shape(kernel_for_work)
-            batch_size, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
+            _, filter, kernel_height, kernel_width, channals_k= np.shape(kernel_for_work)
+            batch_size, _, gradient_height, gradient_width, channals_c = np.shape(self.Output_drev[-1])
 
             activ_drev = np.array(self.Activeit(self.Z_output[self.on_this+1], activition_func))
 
-            work_OUT_dre = np.array(self.Output[self.on_this])
             A_D_out = np.array(self.Output_drev[-1])
-            kernel_wpok = np.array(self.kernel[self.on_this])
 
             D_A = np.zeros_like(input_image)
             D_K = np.zeros_like(self.kernel[self.on_this])
@@ -361,14 +361,15 @@ class NN:
             for f in range(0, filter):
                 for y in range(0, gradient_height):
                     for x in range(0, gradient_width):
-                        h_start, w_start = y * stride, x * stride
-                        h_end, w_end = h_start + kernel_height, w_start + kernel_height
+                        for c in range(0, input_image.shape[-1]):
+                            h_start, w_start = y * stride, x * stride
+                            h_end, w_end = h_start + kernel_height, w_start + kernel_width
 
-                        region = work_OUT_dre[:,h_start:h_end,w_start:w_end, f]
-                        teta = (A_D_out[:,y,x,f] * activ_drev[:,y,x,f])
+                            region = input_image[:, :,h_start:h_end,w_start:w_end, c]
+                            teta = (A_D_out[:,:,y,x,f] * activ_drev[:,:,y,x,f])
 
-                        D_K[f, :, :, :] += np.sum(region[:,:,:,None] * teta[:,None,None,None], axis=0)
-                        D_A[:, h_start:h_end, w_start:w_end, :] += kernel_wpok[f, :, :, :] * teta[:, None, None, None]
+                            D_K[f, :, :, :] += np.sum(region[:,:,:,:,None] * teta[:,:,None,None,None], axis=(0,1))
+                            D_A[:, :, h_start:h_end, w_start:w_end, :] += kernel_for_work[:, f, :, :, :] * teta[:, :, None, None, None]
 
             self.kernel_D[-1] = D_K.tolist()
             teta = D_A.tolist()
@@ -387,30 +388,34 @@ class NN:
         if padding > 0:
             input_image = np.pad(self.Output[self.on_this][-1], ((padding, padding), (padding, padding)), mode='constant').tolist()
     
-        output = np.array(self.output_img_shapere(input_image, stride))
-        batch_one, output_height, output_width, channels_img = np.shape(output)
+        output = np.array(self.output_img_shapere(input_image, stride, kernel_height, kernel_width, filters))
+        _, _, output_height, output_width, channels_img = np.shape(output)
 
         for y in range(0, output_height):
             for x in range(0, output_width):
                 h_start, w_start = y * stride, x * stride
                 h_end, w_end = h_start + kernel_height, w_start + kernel_width
-                region = input_image[:, h_start:h_end, w_start:w_end, :]
+                region = input_image[:, :, h_start:h_end, w_start:w_end, :]
 
                 if 1 != region.shape[-1]:
-                    region = np.split(region, input_image.shape[-1], axis=3)
+                    region = np.split(region, input_image.shape[-1], axis=4)
 
-                    temp_output = np.zeros(output[:, y, x, :].shape) 
+                    temp_output = np.zeros(output[:, :, y, x, :].shape) 
 
                     for r, k in zip(region, kernel_for_work):
-                        temp_output += np.tensordot(r, kernel_for_work, axes=([1, 2, 3], [1, 2, 3]))
+                        helper = np.tensordot(r, kernel_for_work, axes=([2, 3, 4], [2, 3, 4]))
+                        helper = np.squeeze(helper, axis=-2)
+                        temp_output += helper
 
-                    output[:, y, x, :] = temp_output
+                    output[:, :, y, x, :] = temp_output
 
                 else:
-                    output[:, y, x, :] = np.tensordot(region, kernel_for_work, axes=([1, 2, 3], [1, 2, 3]))
+                    test =  np.tensordot(region, kernel_for_work, axes=([2, 3, 4], [2, 3, 4]))
+                    alpha = np.squeeze(test, axis=-2)
+                    output[:, :, y, x, :] = alpha
 
         self.on_this += 1
-        self.Z_output[self.on_this] = output.reshape(shapy[0],shapy[1],output_height,output_width,channels_img).tolist()
+        self.Z_output[self.on_this] = output.tolist()
         A = self.Activeit(np.array(self.Z_output[self.on_this]), activition_func)
         self.Output[self.on_this] = A
 
@@ -424,12 +429,11 @@ class NN:
             self.kernel.append([0])
 
             test_img = self.test_img
-            input_height, input_width, channals = np.shape(test_img)
+            _,_,_,cannal = np.shape(test_img)
 
-            test_output_height = (input_height - steps) // steps + 1
-            test_output_width = (input_width - steps) // steps + 1
+            new_shape = self.output_img_shapere(test_img, steps, steps, steps, cannal)
 
-            out_test = np.zeros((test_output_height, test_output_width, channals)).tolist()
+            out_test = np.zeros_like((new_shape)).tolist()
             self.test_img = out_test
 
             self.on_this += 1
@@ -442,71 +446,81 @@ class NN:
         
             return
 
-        shapy = np.array(self.Output[self.on_this]).shape
+        working_img = np.array(self.Output[self.on_this])
 
-        working_img = np.array(self.Output[self.on_this]).reshape(shapy[0]*shapy[1], shapy[2], shapy[3], shapy[4])
+        _, _, _, _, cannal = working_img.shape
 
-        batch, input_height, input_width, cannal = working_img.shape
+        new_shape_W = self.output_img_shapere(working_img, steps, steps, steps, cannal)
 
-        output_height = (input_height - steps) // steps + 1
-        output_width = (input_width - steps) // steps + 1
+        _, _, output_height, output_width, _ = new_shape_W.shape
 
-        output_image = np.zeros((batch, output_height, output_width, cannal))
+        output_image = np.zeros_like((new_shape_W))
 
         for y in range(0, output_height):
             for x in range(0, output_width):
-                region = working_img[:, y*steps:y*steps+steps, x*steps:x*steps+steps, :]
+                region = working_img[:, :, y*steps:y*steps+steps, x*steps:x*steps+steps, :]
                 opa = np.max(region)
-                output_image[:, y, x, :] = opa
+                output_image[:, :, y, x, :] = opa
 
         self.on_this += 1
         
-        teta = output_image.reshape(shapy[0], shapy[1], output_height, output_width, shapy[4]).tolist()
+        teta = output_image.tolist()
         self.Output[self.on_this] = teta
 
     def poolimgMax_drev(self, steps=2):
 
         working_img = np.array(self.Output_drev[-1])
 
-        batch, grid_cell, input_height, input_width, cannal = working_img.shape
-
         find = 1
+        batch, grid, inputH, input_W, cannal = working_img.shape
 
-        useg_height = (input_height - steps) // steps + 1
-        useg_width = (input_width - steps) // steps + 1
+        new_shape = self.output_img_shapere(working_img, steps, steps, steps, cannal)
 
-        output_image = np.zeros((batch, grid_cell, input_height, input_width, cannal))
+        _, _, output_height, output_width, _ = new_shape.shape
 
-        for y in range(0, useg_height):
-            for x in range(0, useg_width):
-                region = working_img[:, y*steps:y*steps+steps, x*steps:x*steps+steps, :]
+        output_image = np.zeros((batch, grid, inputH, input_W, cannal))
+
+        for y in range(0, output_height):
+            for x in range(0, output_width):
+                region = working_img[:, :, y*steps:y*steps+steps, x*steps:x*steps+steps, :]
                 maxy = np.max(region)
                 wer = np.where(region == maxy)
-                wer_list = list(zip(wer[0], wer[1]))
-                output_image[:, y*steps+wer_list[0][0], x*steps+wer_list[0][1], :] = find
-            find += 1
+                wer_list = list(zip(wer[2], wer[3]))
+                output_image[:, :, y*steps+wer_list[0][0], x*steps+wer_list[0][1], :] = find
+                find += 1
         
         teta = output_image.tolist()
         self.Output_drev.append(teta)
 
-    def output_img_shapere(self, input_image, stride):
+    def output_img_shapere(self, input_image, stride, kernel_height, kernel_width, filter):
 
-        batch_size, input_height, input_width, cannals_num = np.shape(input_image)
-        filters, kernel_height, kernel_width, input_chanells= np.shape(self.kernel[self.on_this])
+        input_image = np.array(input_image)
+        if self.is_grid == False:
+            input_image = input_image[:,None,:,:,:]
+
+        batch_size, grid, input_height, input_width, cannals_num = input_image.shape
 
         output_height = (input_height - kernel_height) // stride + 1
         output_width = (input_width - kernel_width) // stride + 1
 
-        shape_new = (batch_size, output_height, output_width, filters)
+        shape_new = (batch_size, output_height, output_width, filter)
+        if self.is_grid:
+            shape_new = (batch_size, grid, output_height, output_width, filter)
 
-        output = np.zeros(shape_new).tolist()
+        output = np.zeros(shape_new)
 
         return output
     
     def grid_spliter(self, X, H_aplit, V_split):
+        self.is_grid = True
+
         boxes = []
 
         img_in_work = np.array(X)
+
+        if len(np.shape(X)) == 3:
+            img_in_work = np.array(img_in_work[None,:,:,:])
+
 
         batch_size, input_height, input_width, cannals_num =  np.shape(img_in_work)
 
@@ -560,6 +574,10 @@ class NN:
         if self.is_convFirst == False:
             X = X.reshape(-1, 1).T
         self.on_this = 0
+
+        X = np.array(X)
+        if self.is_grid == False:
+            X = X[None,:,:,:,:]
 
         self.Output[self.on_this] = X
         self.Layers()
@@ -755,6 +773,11 @@ class NN:
                 val_test.append(self.val_x[R])
                 val_test_y.append(self.val_y[R])
 
+            val_test = np.array(val_test)
+            val_test = self.grid_spliter(val_test,3,3)
+            if self.is_grid == False:
+                val_test = val_test[None,:,:,:,:]
+
             self.farword(val_test)
             loss.append(self.categorical_cross_entropy(val_test_y, self.Output[-1]))
 
@@ -768,7 +791,9 @@ class NN:
             R = np.random.randint(1, len(self.X_data))
             self.add_output_layer()
             test_x_data = np.array(self.X_data[R])
-            imgaaaa = test_x_data[np.newaxis, :, :, :]
+            imgaaaa = test_x_data[None, :, :, :]
+            if self.is_grid:
+                imgaaaa = self.grid_spliter(imgaaaa, 3,3)
             test_y_data = self.Y_data[R]
 
             #print(test_x_data)
