@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
 
+toke_lib = "tokens.csv"
+tokins = pd.read_csv(toke_lib)
+
 #################### the grid
 
 x_min, x_max, y_min, y_max = -3.5, 3.5, -3.5, 3.5
@@ -222,17 +225,9 @@ class NN:
             self.Dense(None, None, "softmax")
             self.Dense(None, None, "relu")
             self.Dense(None, None, "relu")
-            self.Flatten()
-            self.conv2d(3, "relu")
-            self.poolingMax()
-            self.conv2d(3, "relu")
             self.optim_time = False
             return
-        self.conv2d(3, "relu", filter_num=3)
-        self.poolingMax()
-        self.conv2d(3, "relu", filter_num=3)
-        wight_of_flatten = self.Flatten()
-        self.Dense(wight_of_flatten, 40 , "relu")
+        self.Dense(6, 40 , "relu")
         self.Dense(40, 20, "relu")
         self.Dense(20 , 3, "softmax")
 
@@ -293,6 +288,35 @@ class NN:
 
 
         return A.tolist()
+    
+    def sent2word(self, sente):
+        words = []
+        word = ''
+        for letter in sente:
+            word += letter
+            if letter == ' ':
+                word = word[:-1]
+
+                words.append(word)
+                word = ''
+
+
+        return words
+
+    def Embedding(self):
+
+        input_seq = "we get a new fishes in our garden"
+        input_seq = self.sent2word(input_seq)
+
+        tokinze = []
+
+        for word in input_seq:
+            row = tokins[tokins['word'] == word]
+            token = row["token"].values[0]
+
+            tokinze.append(token)
+
+        return tokinze
 
     def Dense(self, input, output, activition_func):
         if self.Creat_time:
@@ -806,5 +830,8 @@ class NN:
             plt.show()
 
 model = NN(data_set_photo_num_ob)
-model.Creat()
-model.fit(30, 7, 'ADAM')
+# model.Creat()
+# model.fit(30, 7, 'ADAM')
+
+tokinsees = model.Embedding()
+print(tokinsees)
