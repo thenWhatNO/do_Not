@@ -208,6 +208,7 @@ class NN:
         self.on_this = 0
 
         self.is_grid = False
+        self.optim_time = False
 
         self.batch_num = 1
         self.filter = 1
@@ -227,6 +228,7 @@ class NN:
             self.Dense(None, None, "relu")
             self.optim_time = False
             return
+        self.Embedding()
         self.Dense(6, 40 , "relu")
         self.Dense(40, 20, "relu")
         self.Dense(20 , 3, "softmax")
@@ -253,10 +255,13 @@ class NN:
         self.Layers()
         self.Creat_time = False
 
-    def Creat_param(self, neruals, weithg):
+    def Creat_param(self, neruals, weithg, return_to=False):
         np.random.seed(1)
         wight = np.random.randn(neruals, weithg) * np.sqrt(2. / weithg)
         bias = np.random.randn(1, neruals)
+
+        if return_to:
+            return wight, bias
 
         self.Wight.append(wight.tolist())
         self.Bias.append(bias.tolist())
@@ -286,37 +291,135 @@ class NN:
         if activation == "softmax":
             A = softmax_derivative(Z) if self.optim_time else softmax(Z)
 
-
         return A.tolist()
     
-    def sent2word(self, sente):
-        words = []
-        word = ''
-        for letter in sente:
-            word += letter
-            if letter == ' ':
-                word = word[:-1]
+    def multi_head_attention(self, Q, K, V, head_num):
 
-                words.append(word)
-                word = ''
+        if self.Creat_time:
+            self.count_layers_num += 1
+
+            wight_bias = {
+                "Q":[],
+                "K":[],
+                "V":[],
+                "O":[]
+            }
+
+            for i in wight_bias:
+                wight, bios = self.Creat_param(np.shape(Q)[-1], np.shape(Q)[-1], True)
+                wight_bias[i] = [wight, bios]
+
+            self.Bias.append([0])
+            self.kernel.append([0])
+
+            return 
+
+        if self.optim_time:
+            pass
 
 
-        return words
+        d_model = Q.shape[-1]
+        depth_per_head = d_model // head_num
+
+        Q_heads = self.split_or_mix(Q, head_num, "split")
+        K_heads = self.split_or_mix(K, head_num, "split")
+        V_heads = self.split_or_mix(V, head_num, "split")
+
+        attention_outputs = []
+        scaling_factor = np.sqrt(depth_per_head)
+        for i in range(head_num):
+            scores = np.matmul(Q_heads[:, i], K_heads[:, i].transpose(0, 2, 1))
+            scaled_scores = scores / scaling_factor
+            attention_weights = softmax(scaled_scores)
+            attention_output = np.matmul(attention_weights, V_heads[:, i]) 
+            attention_outputs.append(attention_output)
+
+        attention_outputs = np.stack(attention_outputs, axis=1)
+        combined_output = self.split_or_mix(attention_outputs, head_num, 'mix') 
+
+        self.Output[self.on_this].append(combined_output)
+    
+    def split_or_mix(self, X, num_heads, action):
+        if action == 'split':
+            batch_size, seq_length, d_model = X.shape
+            depth_per_head = d_model // num_heads
+            X = X.reshape(batch_size, seq_length, num_heads, depth_per_head)
+
+            return np.transpose(X, axes=(0, 2, 1, 3))
+        
+        if action == 'mix':
+
+            batch_size, num_heads, seq_length, depth_per_head = X.shape
+            d_model = num_heads * depth_per_head
+            X = np.transpose(X, axes=(0, 2, 1, 3))
+
+            return X.reshape(batch_size, seq_length, d_model)
+    
+    def positional_encoding(self, word_num, token_num):
+
+        if self.Creat_time:
+            self.count_layers_num += 1
+
+            self.Wight.append([0])
+            self.Bias.append([0])
+            self.kernel.append([0])
+
+            return 
+
+        PE = np.zeros((word_num, token_num))
+        for pos in range(word_num):
+            for i in range(0, token_num, 2):
+                PE[pos, i] = np.sin(pos / (10000 ** (i / token_num)))
+                if i + 1 < token_num:
+                    PE[pos, i + 1] = np.cos(pos / (10000 ** (i / token_num)))
+
+        self.Output[self.on_this].append(PE)
 
     def Embedding(self):
 
+        if self.Creat_time:
+            self.count_layers_num += 1
+
+            self.Wight.append([0])
+            self.Bias.append([0])
+            self.kernel.append([0])
+
+            return 
+
         input_seq = "we get a new fishes in our garden"
-        input_seq = self.sent2word(input_seq)
-
+        input_words = input_seq.strip().split()
         tokinze = []
+        
+        row = tokins[tokins['word'].isin(input_words)] 
+        
+        if row.empty:  
+            return []
 
-        for word in input_seq:
-            row = tokins[tokins['word'] == word]
-            token = row["token"].values[0]
+        token = row["token"].tolist()
+        ids = row["id"].tolist()
+        tokinze.extend(token)
+    
+        if self.optim_time:
+            D_A = self.Output_drev[-1]
+            
+            tokinze = np.array([np.fromstring(rop.strip("[]"), sep=" ")for rop in tokinze])
+        
+            tokinze -= D_A * 0.01
+                
+            for i, wordy in enumerate(input_words):
+                matching_rows = tokins.loc[tokins['word'].isin([wordy]), "token"]
+                if not matching_rows.empty:
+                    print(f"Updating for word: {wordy}, token: {tokinze[i]}")
+                                 
+                    tokins.at[ids[i], "token"] =  tokinze[i]
 
-            tokinze.append(token)
 
-        return tokinze
+            tokins.to_csv('tokens.csv', index=False)           
+            return
+        
+        tokinze = tokinze.tolist()
+    
+        self.Output[self.on_this].append(tokinze)
 
     def Dense(self, input, output, activition_func):
         if self.Creat_time:
@@ -833,5 +936,9 @@ model = NN(data_set_photo_num_ob)
 # model.Creat()
 # model.fit(30, 7, 'ADAM')
 
-tokinsees = model.Embedding()
+tokinsees = model.Embedding(None)
 print(tokinsees)
+
+model.optim_time = True
+graady = np.random.randn(8,4)
+tokinsees = model.Embedding(graady)

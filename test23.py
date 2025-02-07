@@ -14,9 +14,8 @@ def split_heads(X, num_heads):
     """
     batch_size, seq_length, d_model = X.shape
     depth_per_head = d_model // num_heads
-    # Reshape into (batch_size, seq_length, num_heads, depth_per_head)
     X = X.reshape(batch_size, seq_length, num_heads, depth_per_head)
-    # Transpose to (batch_size, num_heads, seq_length, depth_per_head)
+
     return np.transpose(X, axes=(0, 2, 1, 3))
 
 # Combine heads after attention
@@ -26,9 +25,7 @@ def combine_heads(X):
     """
     batch_size, num_heads, seq_length, depth_per_head = X.shape
     d_model = num_heads * depth_per_head
-    # Transpose to (batch_size, seq_length, num_heads, depth_per_head)
     X = np.transpose(X, axes=(0, 2, 1, 3))
-    # Reshape into (batch_size, seq_length, d_model)
     return X.reshape(batch_size, seq_length, d_model)
 
 # Inputs
