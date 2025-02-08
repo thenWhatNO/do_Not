@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+
 data_path = "tokens.csv"
 
 text = "we get a new fishes in our garden"

@@ -295,6 +295,9 @@ class NN:
     
     def multi_head_attention(self, Q, K, V, head_num):
 
+        d_model = Q.shape[-1]
+        depth_per_head = d_model // head_num
+
         if self.Creat_time:
             self.count_layers_num += 1
 
@@ -306,7 +309,7 @@ class NN:
             }
 
             for i in wight_bias:
-                wight, bios = self.Creat_param(np.shape(Q)[-1], np.shape(Q)[-1], True)
+                wight, bios = self.Creat_param(np.shape(Q)[-1], depth_per_head, True)
                 wight_bias[i] = wight
 
             self.Wight.append(wight_bias)
@@ -316,7 +319,7 @@ class NN:
             return 
 
         if self.optim_time:
-            d_Wo = np.dot(combined_output, self.Output_drev[-1])
+            d_Wo = np.dot(combined_output, self.Output_drev[-1].T)
 
             d_O = np.dot(wight_bias["O"], self.Output_drev[-1])
 
@@ -339,14 +342,10 @@ class NN:
             d_Wq = Q * d_Q
             d_Wk = K * d_K
             d_Wv = V * d_V
-                
 
         Q = np.dot(Q, wight_bias["Q"])
         K = np.dot(K, wight_bias["K"])
         V = np.dot(V, wight_bias["V"])
-        
-        d_model = Q.shape[-1]
-        depth_per_head = d_model // head_num
 
         Q_heads = self.split_or_mix(Q, head_num, "split")
         K_heads = self.split_or_mix(K, head_num, "split")
@@ -355,15 +354,14 @@ class NN:
         attention_outputs = []
 
         scores = []
-        scaled_scores=[]
-        attention_weights=[]
+        scaled_scores = []
+        attention_weights = []
         attention_output = []
 
         scaling_factor = np.sqrt(depth_per_head)
         for i in range(head_num):
-            scores.append(np.matmul(Q_heads[:, i], K_heads[:, i].transpose(0, 2, 1)))
-            scaled_scores.append(scores[i] / scaling_factor)
-            attention_weights.append(softmax(scaled_scores[i]))
+            scores.append(np.matmul(Q_heads[:, i], K_heads[:, i].transpose(0, 2, 1)) / scaling_factor)
+            attention_weights.append(softmax(scores[i]))
             attention_output.append(np.matmul(attention_weights[i], V_heads[:, i]))
 
         attention_outputs = np.stack(attention_output, axis=1)
