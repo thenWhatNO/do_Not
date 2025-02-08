@@ -307,17 +307,44 @@ class NN:
 
             for i in wight_bias:
                 wight, bios = self.Creat_param(np.shape(Q)[-1], np.shape(Q)[-1], True)
-                wight_bias[i] = [wight, bios]
+                wight_bias[i] = wight
 
+            self.Wight.append(wight_bias)
             self.Bias.append([0])
             self.kernel.append([0])
 
             return 
 
         if self.optim_time:
-            pass
+            d_Wo = np.dot(combined_output, self.Output_drev[-1])
 
+            d_O = np.dot(wight_bias["O"], self.Output_drev[-1])
 
+            split_D_O = self.split_or_mix(d_O, head_num, "split")
+
+            d_K = []
+            d_Q = []
+            d_V = []
+
+            for i in range(head_num):
+                d_V.append(attention_weights[i] * split_D_O[i])
+                
+                d_attention_weights = V_heads[:, i] * softmax_derivative(scaled_scores[i])
+
+                d_scaled_scores = (1/scaling_factor) * d_attention_weights
+
+                d_Q.append(K_heads[:, i] * d_scaled_scores)
+                d_K.append(Q_heads[:, i] * d_scaled_scores)
+
+            d_Wq = Q * d_Q
+            d_Wk = K * d_K
+            d_Wv = V * d_V
+                
+
+        Q = np.dot(Q, wight_bias["Q"])
+        K = np.dot(K, wight_bias["K"])
+        V = np.dot(V, wight_bias["V"])
+        
         d_model = Q.shape[-1]
         depth_per_head = d_model // head_num
 
@@ -326,18 +353,25 @@ class NN:
         V_heads = self.split_or_mix(V, head_num, "split")
 
         attention_outputs = []
+
+        scores = []
+        scaled_scores=[]
+        attention_weights=[]
+        attention_output = []
+
         scaling_factor = np.sqrt(depth_per_head)
         for i in range(head_num):
-            scores = np.matmul(Q_heads[:, i], K_heads[:, i].transpose(0, 2, 1))
-            scaled_scores = scores / scaling_factor
-            attention_weights = softmax(scaled_scores)
-            attention_output = np.matmul(attention_weights, V_heads[:, i]) 
-            attention_outputs.append(attention_output)
+            scores.append(np.matmul(Q_heads[:, i], K_heads[:, i].transpose(0, 2, 1)))
+            scaled_scores.append(scores[i] / scaling_factor)
+            attention_weights.append(softmax(scaled_scores[i]))
+            attention_output.append(np.matmul(attention_weights[i], V_heads[:, i]))
 
-        attention_outputs = np.stack(attention_outputs, axis=1)
+        attention_outputs = np.stack(attention_output, axis=1)
         combined_output = self.split_or_mix(attention_outputs, head_num, 'mix') 
 
-        self.Output[self.on_this].append(combined_output)
+        O = np.dot(combined_output, wight_bias["O"])
+
+        self.Output[self.on_this].append(O)
     
     def split_or_mix(self, X, num_heads, action):
         if action == 'split':
