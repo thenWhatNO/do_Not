@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
+import sys
 
 toke_lib = "tokens.csv"
 tokins = pd.read_csv(toke_lib)
@@ -52,9 +53,21 @@ for i in images:
 def one_how(labels, num_class):
     return np.eye(num_class)[labels.astype(int)].tolist()
 
-one_label = one_how(labels, 2)
+# one_label = one_how(labels, 2)
 
-data_set_photo = [img_array_for_show, one_label]
+# data_set_photo = [img_array_for_show, one_label]
+
+#/////////////////////////////////////////////
+
+data_path = "data_2/words_label.csv"
+
+df = pd.read_csv(data_path)
+sentens= df['sentenc'].tolist()
+labels = np.array(df['targ'])
+
+eye_labols = one_how(labels, 1)
+
+word_data = [sentens, eye_labols]
 
 #////////////////////////////////////num ob data
 
@@ -84,9 +97,6 @@ for i in images:
         #     imf2float[i] = float(img)
     #img_array.append(img_one_shot[0])
     img_array_for_show.append(cannal_up.tolist())
-
-def one_how(labels, num_class):
-    return np.eye(num_class)[labels.astype(int)].tolist()
 
 one_label = one_how(labels, 3)
 
@@ -121,9 +131,6 @@ data_set_photo_num_ob = [img_array_for_show, one_label]
 #         #     imf2float[i] = float(img)
 #     #img_array.append(img_one_shot[0])
 #     img_array_for_show.append(cannal_up.tolist())
-
-# def one_how(labels, num_class):
-#     return np.eye(num_class)[labels.astype(int)].tolist()
 
 # one_label = one_how(labels, 26)
 
@@ -209,10 +216,17 @@ class NN:
 
         self.is_grid = False
         self.optim_time = False
+        self.atantion_optim = False
+        self.Creat_time = True
+        self.is_convFirst = False
+        self.is_word_data = False
+        self.conv_optim = False
 
         self.batch_num = 1
         self.filter = 1
         self.channal = 1
+
+        self.count_layers_num = 0
 
         self.Wight = []
         self.Bias = []
@@ -226,12 +240,17 @@ class NN:
             self.Dense(None, None, "softmax")
             self.Dense(None, None, "relu")
             self.Dense(None, None, "relu")
+            self.Embedding()
             self.optim_time = False
             return
         self.Embedding()
-        self.Dense(6, 40 , "relu")
+        self.positional_encoding()
+        self.multi_head_attention(2)
+        #self.conv2d(3,"relu")
+        out_shape = self.Flatten()
+        self.Dense(out_shape, 40 , "relu")
         self.Dense(40, 20, "relu")
-        self.Dense(20 , 3, "softmax")
+        self.Dense(20 , 1, "softmax")
 
     def add_output_layer(self):
         self.Output = []
@@ -243,10 +262,13 @@ class NN:
         self.Z_output.pop()
 
     def Creat(self):
-        image = self.grid_spliter(self.X_data[0], 3, 3)
-        self.is_grid = False
+        if self.is_grid:
+            image = self.grid_spliter(self.X_data[0], 3, 3)
+            self.test_img = np.zeros((np.shape(image))).tolist()
+            self.is_grid = False
 
-        self.test_img = np.zeros((np.shape(image[0]))).tolist()
+        if self.is_convFirst:
+            self.test_img = [[np.zeros((np.shape(self.X_data[0]))).tolist()]]
 
         self.count_layers_num = 0
 
@@ -293,12 +315,10 @@ class NN:
 
         return A.tolist()
     
-    def multi_head_attention(self, Q, K, V, head_num):
-
-        d_model = Q.shape[-1]
-        depth_per_head = d_model // head_num
+    def multi_head_attention(self, head_num):
 
         if self.Creat_time:
+
             self.count_layers_num += 1
 
             wight_bias = {
@@ -309,7 +329,7 @@ class NN:
             }
 
             for i in wight_bias:
-                wight, bios = self.Creat_param(np.shape(Q)[-1], depth_per_head, True)
+                wight, bios = self.Creat_param(4, 4, True)
                 wight_bias[i] = wight
 
             self.Wight.append(wight_bias)
@@ -317,35 +337,15 @@ class NN:
             self.kernel.append([0])
 
             return 
+        
+        X_data = self.Output[self.on_this]
 
-        if self.optim_time:
-            d_Wo = np.dot(combined_output, self.Output_drev[-1].T)
+        d_model = np.shape(X_data)[-1]
+        depth_per_head = d_model // head_num
 
-            d_O = np.dot(wight_bias["O"], self.Output_drev[-1])
-
-            split_D_O = self.split_or_mix(d_O, head_num, "split")
-
-            d_K = []
-            d_Q = []
-            d_V = []
-
-            for i in range(head_num):
-                d_V.append(attention_weights[i] * split_D_O[i])
-                
-                d_attention_weights = V_heads[:, i] * softmax_derivative(scaled_scores[i])
-
-                d_scaled_scores = (1/scaling_factor) * d_attention_weights
-
-                d_Q.append(K_heads[:, i] * d_scaled_scores)
-                d_K.append(Q_heads[:, i] * d_scaled_scores)
-
-            d_Wq = Q * d_Q
-            d_Wk = K * d_K
-            d_Wv = V * d_V
-
-        Q = np.dot(Q, wight_bias["Q"])
-        K = np.dot(K, wight_bias["K"])
-        V = np.dot(V, wight_bias["V"])
+        Q = np.dot(X_data, self.Wight[self.on_this]["Q"])
+        K = np.dot(X_data, self.Wight[self.on_this]["K"])
+        V = np.dot(X_data, self.Wight[self.on_this]["V"])
 
         Q_heads = self.split_or_mix(Q, head_num, "split")
         K_heads = self.split_or_mix(K, head_num, "split")
@@ -355,21 +355,72 @@ class NN:
 
         scores = []
         scaled_scores = []
-        attention_weights = []
+        self.attention_weights = []
         attention_output = []
 
         scaling_factor = np.sqrt(depth_per_head)
         for i in range(head_num):
             scores.append(np.matmul(Q_heads[:, i], K_heads[:, i].transpose(0, 2, 1)) / scaling_factor)
-            attention_weights.append(softmax(scores[i]))
-            attention_output.append(np.matmul(attention_weights[i], V_heads[:, i]))
+            self.attention_weights.append(softmax(scores[i]))
+            attention_output.append(np.matmul(self.attention_weights[i], V_heads[:, i]))
 
         attention_outputs = np.stack(attention_output, axis=1)
-        combined_output = self.split_or_mix(attention_outputs, head_num, 'mix') 
+        self.combined_output = self.split_or_mix(attention_outputs, head_num, 'mix') 
 
-        O = np.dot(combined_output, wight_bias["O"])
+        O = np.dot(self.combined_output, self.Wight[self.on_this]["O"])
 
-        self.Output[self.on_this].append(O)
+        if not self.optim_time:
+            self.on_this += 1
+            self.Output[self.on_this] = O.tolist()
+            return
+             
+        if self.optim_time:
+            gridy = self.Output_drev[-1]
+            
+            d_O = np.matmul(gridy, self.Wight[-1]["O"].swapaxes(-1, -2))
+            d_Wo = np.matmul(self.combined_output.reshape(-1, d_model).T, d_O.reshape(-1, d_model))
+
+            split_D_O = self.split_or_mix(d_O, head_num, "split")
+
+            d_K = []
+            d_Q = []
+            d_V = []
+
+            for i in range(head_num):
+                d_V_head = np.matmul(self.attention_weights[i], split_D_O[:,:,i,:])
+                d_V.append(d_V_head)
+                
+                d_attention_weights = np.matmul(split_D_O[:,:,i,:], V_heads[:, i].swapaxes(-1, -2))
+                d_scaled_scores = d_attention_weights * softmax_derivative(self.attention_weights[i])
+
+                d_Q_head = np.matmul(d_scaled_scores, K_heads[:,i])
+                d_K_head = np.matmul(d_scaled_scores.swapaxes(-1,-2), Q_heads[:,i])
+
+                d_Q.append(d_Q_head)
+                d_K.append(d_K_head)
+
+            d_K = self.split_or_mix(np.array(d_K).transpose(1,0,2,3), head_num, "mix")
+            d_Q = self.split_or_mix(np.array(d_Q).transpose(1,0,2,3), head_num, "mix")
+            d_V = self.split_or_mix(np.array(d_V).transpose(1,0,2,3), head_num, "mix")
+
+            d_Wq = np.matmul(X_data.transpose(0, 2, 1), d_Q)
+            d_Wk = np.matmul(X_data.transpose(0, 2, 1), d_K)
+            d_Wv = np.matmul(X_data.transpose(0, 2, 1), d_V)
+
+            self.d_atantion_W = {
+                "Q":d_Wq,
+                "K":d_Wk,
+                "V":d_Wv,
+                "O":d_Wo
+            }
+
+            d_A = np.matmul(d_Q, self.Wight[self.on_this]["Q"].T) + np.matmul(d_K, self.Wight[self.on_this]["K"].T) + np.matmul(d_V, self.Wight[self.on_this]["V"].T)
+
+            self.atantion_optim = True
+            self.optim(self.optim_type)
+            self.on_this -= 1
+            self.atantion_optim = False
+        
     
     def split_or_mix(self, X, num_heads, action):
         if action == 'split':
@@ -387,9 +438,12 @@ class NN:
 
             return X.reshape(batch_size, seq_length, d_model)
     
-    def positional_encoding(self, word_num, token_num):
+    def positional_encoding(self):
 
         if self.Creat_time:
+            
+            self.is_word_data = True
+
             self.count_layers_num += 1
 
             self.Wight.append([0])
@@ -397,6 +451,9 @@ class NN:
             self.kernel.append([0])
 
             return 
+        
+        x_data = self.Output[self.on_this]
+        word_num, token_num = np.shape(x_data)[-2], np.shape(x_data)[-1] 
 
         PE = np.zeros((word_num, token_num))
         for pos in range(word_num):
@@ -405,7 +462,26 @@ class NN:
                 if i + 1 < token_num:
                     PE[pos, i + 1] = np.cos(pos / (10000 ** (i / token_num)))
 
-        self.Output[self.on_this].append(PE)
+        outy = np.array(x_data)
+        out = (outy + PE).tolist()
+
+        if not self.optim_time:
+            self.on_this += 1
+            self.Output[self.on_this] = out
+            return
+
+        self.Output_drev.append(self.Output_drev[-1])
+
+    def add_new_words(eslf, words):
+        for word in words:
+            if not (tokins["word"] == word).any():
+                token = np.random.randn(4)
+                tokins.loc[len(tokins)] = [word, tokins['id'].iloc[-1]+1, token]
+
+        tokins.to_csv('tokens.csv', index=False)
+
+        print("the program stap work becouse of new data get added to the tokkins data \n reset the program to keep work")
+        sys.exit()
 
     def Embedding(self):
 
@@ -418,19 +494,26 @@ class NN:
 
             return 
 
-        input_seq = "we get a new fishes in our garden"
-        input_words = input_seq.strip().split()
+        input_seq = self.Output[self.on_this].tolist()
         tokinze = []
-        
-        row = tokins[tokins['word'].isin(input_words)] 
-        
-        if row.empty:  
-            return []
+        for sentens in input_seq:
+            input_words = sentens.strip().split()
+            
+            row = tokins[tokins['word'].isin(input_words)]
+            worly = row["word"].tolist()
+            
+            if len(worly) < len(input_words):  
+                self.add_new_words(input_words)
+                return []
 
-        token = row["token"].tolist()
-        ids = row["id"].tolist()
-        tokinze.extend(token)
-    
+            token = row["token"].tolist()
+            token_corect = np.array([np.fromstring(rop.strip("[]"), sep=" ")for rop in token])
+            ids = row["id"].tolist()
+            tokinze.append(token_corect.tolist())
+
+        self.on_this += 1
+        self.Output[self.on_this] = tokinze
+
         if self.optim_time:
             D_A = self.Output_drev[-1]
             
@@ -448,10 +531,6 @@ class NN:
 
             tokins.to_csv('tokens.csv', index=False)           
             return
-        
-        tokinze = tokinze.tolist()
-    
-        self.Output[self.on_this].append(tokinze)
 
     def Dense(self, input, output, activition_func):
         if self.Creat_time:
@@ -473,7 +552,7 @@ class NN:
         
         self.on_this += 1
         for i in self.Output[self.on_this-1]:
-            Z = np.dot(i, np.array(self.Wight[self.on_this-1]).T) + self.Bias[self.on_this-1]
+            Z = np.dot(i, np.array(self.Wight[self.on_this-1]).T) + self.Bias[self.on_this-1]# stuck with the shapes in the flatting and dense
             list_Z = Z.tolist()
             self.Z_output[self.on_this-1].append(list_Z[0])
 
@@ -654,8 +733,6 @@ class NN:
     def output_img_shapere(self, input_image, stride, kernel_height, kernel_width, filter):
 
         input_image = np.array(input_image)
-        if self.is_grid == False:
-            input_image = input_image[:,None,:,:,:]
 
         batch_size, grid, input_height, input_width, cannals_num = input_image.shape
 
@@ -663,10 +740,11 @@ class NN:
         output_width = (input_width - kernel_width) // stride + 1
 
         shape_new = (batch_size, output_height, output_width, filter)
+
         if self.is_grid:
             shape_new = (batch_size, grid, output_height, output_width, filter)
 
-        output = np.zeros(shape_new)
+        output = np.zeros(shape_new)[:,None]
 
         return output
     
@@ -701,8 +779,13 @@ class NN:
     def Flatten(self):
         if self.Creat_time:
             self.count_layers_num += 1
-            self.kernel_org_shape = np.shape(self.test_img)
-            out_of = np.array(self.test_img).reshape(1, -1).tolist()
+            if self.is_convFirst:
+                self.kernel_org_shape = np.shape(self.test_img)
+                out_of = np.array(self.test_img).reshape(1, -1).tolist()
+
+            if self.is_word_data:
+                out_of = 4*4
+                return out_of
 
             self.Wight.append([0])
             self.Bias.append([0])
@@ -730,13 +813,13 @@ class NN:
             self.Output[self.on_this].append(flat[0])
 
     def farword(self, X):
-        if self.is_convFirst == False:
+        if self.is_convFirst==False and self.is_word_data==False:
             X = X.reshape(-1, 1).T
         self.on_this = 0
 
         X = np.array(X)
-        if self.is_grid == False:
-            X = X[None,:,:,:,:]
+        if self.is_grid == False and self.is_word_data==False:
+            X = X[:,None]
 
         self.Output[self.on_this] = X
         self.Layers()
@@ -783,9 +866,33 @@ class NN:
 
     def optim(self, optimaze_type, lerning_rate = 0.01):
         if optimaze_type == "SVM":
+            if self.atantion_optim:
+                self.SVM_optim_atantion(lerning_rate)
+                return
             self.SVM_optim_conv(lerning_rate) if self.conv_optim == True else self.SVM_optim(lerning_rate)
         if optimaze_type == "ADAM":
+            if self.atantion_optim:
+                self.ADAM_optim_atantion(lerning_rate)
+                return
             self.Adam_optim_conv(lerning_rate) if self.conv_optim == True else self.ADAM_optim(lerning_rate)
+
+    def SVM_optim_atantion(self, lerning_rate):
+        for key in self.Wight[self.on_this]:
+         self.Wight[self.on_this][key] -= self.d_atantion_W[key] * lerning_rate
+
+    def ADAM_optim_atantion(self, lerning_rate, beta1=0.9, beta2=0.999, epsilon=1e-8):
+        for key in self.Wight[self.on_this]:
+            m_key = np.zeros_like(self.Wight[self.on_this][key])
+            v_key = np.zeros_like(self.Wight[self.on_this][key])
+
+            m_key = beta1 * m_key + (1-beta1) * self.d_atantion_W[key]
+            v_key = beta2 * v_key + (1-beta2) * (self.d_atantion_W[key]**2)
+
+            hat_m = m_key / (1-beta1 ** self.time)
+            hat_v = v_key / (1-beta2 ** self.time)
+
+            self.Wight[self.on_this][key] -= lerning_rate * hat_m / (np.sqrt(hat_v) + epsilon).tolist()
+
 
     def SVM_optim(self, lerning_rate):
         self.Wight[self.on_this] -= self.W_D * lerning_rate
@@ -902,9 +1009,9 @@ class NN:
 
                 self.batch_for_now = len(x_batch)
 
-                grided_out = self.grid_spliter(x_batch, 3, 3) # need mostly for object detection
+                #grided_out = self.grid_spliter(x_batch, 3, 3) # need mostly for object detection
         
-                self.farword(grided_out)
+                self.farword(x_batch)
 
                 self.batch_label = self.Output[-1]
 
@@ -964,13 +1071,6 @@ class NN:
             plt.imshow(test_x_data)
             plt.show()
 
-model = NN(data_set_photo_num_ob)
-# model.Creat()
-# model.fit(30, 7, 'ADAM')
-
-tokinsees = model.Embedding(None)
-print(tokinsees)
-
-model.optim_time = True
-graady = np.random.randn(8,4)
-tokinsees = model.Embedding(graady)
+model = NN(word_data)
+model.Creat()
+model.fit(30, 7, 'ADAM')

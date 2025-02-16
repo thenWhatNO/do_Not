@@ -4,7 +4,7 @@ import pandas as pd
 
 data_path = "tokens.csv"
 
-text = "we get a new fishes in our garden"
+text = "we get new fish"
 
 df = pd.read_csv(data_path)
 work = df['word']
@@ -27,9 +27,9 @@ for letter in text:
 
             df.loc[len(df)] = [word, id.iloc[-1]+1, token]
 
-        word = ''
-        work = df['word']
-        id  = df['id']
-        toke = df['token']
+    word = ''
+    work = df['word']
+    id  = df['id']
+    toke = df['token']
 
 df.to_csv('tokens.csv', index=False)
