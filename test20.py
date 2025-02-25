@@ -240,6 +240,9 @@ class NN:
             self.Dense(None, None, "softmax")
             self.Dense(None, None, "relu")
             self.Dense(None, None, "relu")
+            self.Flatten()
+            self.multi_head_attention(2)
+            self.positional_encoding()
             self.Embedding()
             self.optim_time = False
             return
@@ -338,7 +341,11 @@ class NN:
 
             return 
         
-        X_data = self.Output[self.on_this]
+
+        if not self.optim_time:
+            self.atantion_data = np.array(self.Output[self.on_this])
+
+        X_data = np.array(self.atantion_data)
 
         d_model = np.shape(X_data)[-1]
         depth_per_head = d_model // head_num
@@ -377,7 +384,7 @@ class NN:
         if self.optim_time:
             gridy = self.Output_drev[-1]
             
-            d_O = np.matmul(gridy, self.Wight[-1]["O"].swapaxes(-1, -2))
+            d_O = np.matmul(gridy, self.Wight[self.on_this]["O"].swapaxes(-1, -2))
             d_Wo = np.matmul(self.combined_output.reshape(-1, d_model).T, d_O.reshape(-1, d_model))
 
             split_D_O = self.split_or_mix(d_O, head_num, "split")
@@ -387,14 +394,14 @@ class NN:
             d_V = []
 
             for i in range(head_num):
-                d_V_head = np.matmul(self.attention_weights[i], split_D_O[:,:,i,:])
+                d_V_head = np.matmul(self.attention_weights[i], split_D_O[:,i,:,:])
                 d_V.append(d_V_head)
                 
-                d_attention_weights = np.matmul(split_D_O[:,:,i,:], V_heads[:, i].swapaxes(-1, -2))
+                d_attention_weights = np.matmul(split_D_O[:,i,:,:], V_heads[:, i].swapaxes(-1, -2))
                 d_scaled_scores = d_attention_weights * softmax_derivative(self.attention_weights[i])
 
                 d_Q_head = np.matmul(d_scaled_scores, K_heads[:,i])
-                d_K_head = np.matmul(d_scaled_scores.swapaxes(-1,-2), Q_heads[:,i])
+                d_K_head = np.matmul(d_scaled_scores, Q_heads[:,i])
 
                 d_Q.append(d_Q_head)
                 d_K.append(d_K_head)
@@ -403,9 +410,9 @@ class NN:
             d_Q = self.split_or_mix(np.array(d_Q).transpose(1,0,2,3), head_num, "mix")
             d_V = self.split_or_mix(np.array(d_V).transpose(1,0,2,3), head_num, "mix")
 
-            d_Wq = np.matmul(X_data.transpose(0, 2, 1), d_Q)
-            d_Wk = np.matmul(X_data.transpose(0, 2, 1), d_K)
-            d_Wv = np.matmul(X_data.transpose(0, 2, 1), d_V)
+            d_Wq = np.matmul(X_data.reshape(-1, d_model).T, d_Q.reshape(-1, d_model))
+            d_Wk = np.matmul(X_data.reshape(-1, d_model).T, d_K.reshape(-1, d_model))
+            d_Wv = np.matmul(X_data.reshape(-1, d_model).T, d_V.reshape(-1, d_model))
 
             self.d_atantion_W = {
                 "Q":d_Wq,
@@ -494,7 +501,7 @@ class NN:
 
             return 
 
-        input_seq = self.Output[self.on_this].tolist()
+        input_seq = self.Output[self.on_this].tolist() # dont know the problem yet
         tokinze = []
         for sentens in input_seq:
             input_words = sentens.strip().split()
@@ -779,16 +786,18 @@ class NN:
     def Flatten(self):
         if self.Creat_time:
             self.count_layers_num += 1
+
+            self.Wight.append([0])
+            self.Bias.append([0])
+
             if self.is_convFirst:
                 self.kernel_org_shape = np.shape(self.test_img)
                 out_of = np.array(self.test_img).reshape(1, -1).tolist()
 
             if self.is_word_data:
+                self.kernel_org_shape = (4,4)
                 out_of = 4*4
                 return out_of
-
-            self.Wight.append([0])
-            self.Bias.append([0])
 
             return np.size(out_of)
 
@@ -802,7 +811,7 @@ class NN:
 
             self.on_this -= 1
 
-            return
+            return 
         
         self.on_this += 1
 
