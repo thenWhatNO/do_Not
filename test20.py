@@ -7,6 +7,8 @@ import sys
 toke_lib = "tokens.csv"
 tokins = pd.read_csv(toke_lib)
 
+
+
 #################### the grid
 
 x_min, x_max, y_min, y_max = -3.5, 3.5, -3.5, 3.5
@@ -65,7 +67,7 @@ df = pd.read_csv(data_path)
 sentens= df['sentenc'].tolist()
 labels = np.array(df['targ'])
 
-eye_labols = one_how(labels, 1)
+eye_labols = one_how(labels, 2)
 
 word_data = [sentens, eye_labols]
 
@@ -253,7 +255,7 @@ class NN:
         out_shape = self.Flatten()
         self.Dense(out_shape, 40 , "relu")
         self.Dense(40, 20, "relu")
-        self.Dense(20 , 1, "softmax")
+        self.Dense(20 , 2, "softmax")
 
     def add_output_layer(self):
         self.Output = []
@@ -350,9 +352,9 @@ class NN:
         d_model = np.shape(X_data)[-1]
         depth_per_head = d_model // head_num
 
-        Q = np.dot(X_data, self.Wight[self.on_this]["Q"])
-        K = np.dot(X_data, self.Wight[self.on_this]["K"])
-        V = np.dot(X_data, self.Wight[self.on_this]["V"])
+        Q = np.matmul(X_data, self.Wight[self.on_this]["Q"])
+        K = np.matmul(X_data, self.Wight[self.on_this]["K"])
+        V = np.matmul(X_data, self.Wight[self.on_this]["V"])
 
         Q_heads = self.split_or_mix(Q, head_num, "split")
         K_heads = self.split_or_mix(K, head_num, "split")
@@ -483,6 +485,7 @@ class NN:
         for word in words:
             if not (tokins["word"] == word).any():
                 token = np.random.randn(4)
+                token = np.array2string(token, separator=',')
                 tokins.loc[len(tokins)] = [word, tokins['id'].iloc[-1]+1, token]
 
         tokins.to_csv('tokens.csv', index=False)
@@ -501,8 +504,10 @@ class NN:
 
             return 
 
-        input_seq = self.Output[self.on_this].tolist() # dont know the problem yet
-        tokinze = []
+        input_seq = self.Output[0]
+
+
+        self.tokinze = []
         for sentens in input_seq:
             input_words = sentens.strip().split()
             
@@ -514,29 +519,37 @@ class NN:
                 return []
 
             token = row["token"].tolist()
-            token_corect = np.array([np.fromstring(rop.strip("[]"), sep=" ")for rop in token])
+#           token_corect = np.array([np.fromstring(rop.strip("[]"), sep=" ")for rop in token])
+            token_corect = np.array([np.genfromtxt([row.strip("[]")], delimiter=",") for row in token])
             ids = row["id"].tolist()
-            tokinze.append(token_corect.tolist())
+            self.tokinze.append(token_corect.tolist())
 
         self.on_this += 1
-        self.Output[self.on_this] = tokinze
+        self.Output[self.on_this] = self.tokinze
 
         if self.optim_time:
             D_A = self.Output_drev[-1]
+            tokenis = self.Output[1]
             
-            tokinze = np.array([np.fromstring(rop.strip("[]"), sep=" ")for rop in tokinze])
+            #self.tokinze = np.array([np.fromstring(np.array(rop).strip("[]"), sep=" ")for rop in self.tokinze])
         
-            tokinze -= D_A * 0.01
+            tokenis -= np.array(D_A) * 0.01 # not want to multiply
+
+            for i, sentens in enumerate(self.Output[0]):
                 
-            for i, wordy in enumerate(input_words):
-                matching_rows = tokins.loc[tokins['word'].isin([wordy]), "token"]
-                if not matching_rows.empty:
-                    print(f"Updating for word: {wordy}, token: {tokinze[i]}")
-                                 
-                    tokins.at[ids[i], "token"] =  tokinze[i]
+                input_words = sentens.strip().split() 
+                row = tokins[tokins['word'].isin(input_words)]
 
+                tokien_for_data = tokenis[i]
+                idis = row["id"].tolist()
+                
+                for i, wordy in enumerate(input_words):
+                    matching_rows = tokins.loc[tokins['word'].isin([wordy]), "token"]
+                    if not matching_rows.empty:
+                        update_token =  np.array2string(tokien_for_data[i], separator=',')
+                        tokins.at[idis[i], "token"] = update_token
 
-            tokins.to_csv('tokens.csv', index=False)           
+            tokins.to_csv('tokens.csv', index=False)  
             return
 
     def Dense(self, input, output, activition_func):
@@ -963,7 +976,7 @@ class NN:
 
         if self.val_in_chat:
             sublist_means = np.mean(loss)
-            self.color.append(0.5)
+            self.color.append(1)
         else:
             self.num += 1
             self.color.append(0)
@@ -978,7 +991,7 @@ class NN:
         line.set_ydata(self.all_loss[1])
 
         scatter.set_offsets(list(zip(self.all_loss[0], self.all_loss[1])))
-        scatter.set_array(self.color)
+        scatter.set_array(np.array(self.color))
 
         ax.set_xlim(0, max(self.all_loss[0]) + 1)
         ax.set_ylim(min(self.all_loss[1]) - 1, max(self.all_loss[1]) + 1)
@@ -995,7 +1008,7 @@ class NN:
         fig, ax = plt.subplots()
         self.color = []
         line, = ax.plot([], [], linestyle='-', color='gray', label="Loss progresion")  # Initial empty plot
-        scatter = ax.scatter([], [], c=[], cmap='viridis')
+        scatter = ax.scatter([], [], c=self.color, cmap='viridis')
         ax.set_xlim(0, 10)  # Fixed x-axis range
         ax.set_ylim(0, 10)  # Fixed y-axis range
         ax.legend()
@@ -1049,8 +1062,9 @@ class NN:
                 val_test_y.append(self.val_y[R])
 
             val_test = np.array(val_test)
-            val_test = self.grid_spliter(val_test,3,3)
-            if self.is_grid == False:
+            if self.is_grid:
+                val_test = self.grid_spliter(val_test,3,3)
+            if self.is_grid and  not self.is_word_data:
                 val_test = val_test[None,:,:,:,:]
 
             self.farword(val_test)
@@ -1061,24 +1075,6 @@ class NN:
         
         plt.ioff()
         plt.show()
-
-        for i in range(10):
-            R = np.random.randint(1, len(self.X_data))
-            self.add_output_layer()
-            test_x_data = np.array(self.X_data[R])
-            imgaaaa = test_x_data[None, :, :, :]
-            if self.is_grid:
-                imgaaaa = self.grid_spliter(imgaaaa, 3,3)
-            test_y_data = self.Y_data[R]
-
-            #print(test_x_data)
-
-            self.farword(imgaaaa)
-            print(self.Output[-1][0])
-            print(test_y_data)
-
-            plt.imshow(test_x_data)
-            plt.show()
 
 model = NN(word_data)
 model.Creat()
