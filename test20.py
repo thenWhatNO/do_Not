@@ -493,6 +493,13 @@ class NN:
         print("the program stap work becouse of new data get added to the tokkins data \n reset the program to keep work")
         sys.exit()
 
+
+    def normalization(self, epsilon=1e-6):
+        input = self.Output[-1]
+        mean_x = np.mean(input)
+        std = np.std(input)
+        X_normal = (input - mean_x) / (std + epsilon)
+
     def Embedding(self):
 
         if self.Creat_time:
