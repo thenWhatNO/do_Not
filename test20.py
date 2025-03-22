@@ -495,6 +495,15 @@ class NN:
 
 
     def normalization(self, epsilon=1e-6):
+        if self.Creat_time:
+            self.count_layers_num += 1
+
+            self.Wight.append([0])
+            self.Bias.append([0])
+            self.kernel.append([0])
+
+            return 
+        
         input = self.Output[-1]
         mean_x = np.mean(input)
         std = np.std(input)
