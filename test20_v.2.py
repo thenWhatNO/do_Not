@@ -243,6 +243,7 @@ class NN:
             self.Dense(None, None, "relu")
             self.Dense(None, None, "relu")
             self.Flatten()
+            self.normalization(None, None)
             self.multi_head_attention(2)
             self.positional_encoding()
             self.Embedding()
@@ -251,7 +252,7 @@ class NN:
         self.Embedding()
         self.positional_encoding()
         self.multi_head_attention(2)
-        #self.conv2d(3,"relu")
+        self.normalization(4,4)
         out_shape = self.Flatten()
         self.Dense(out_shape, 40 , "relu")
         self.Dense(40, 20, "relu")
@@ -494,20 +495,41 @@ class NN:
         sys.exit()
 
 
-    def normalization(self, epsilon=1e-6):
+    def normalization(self, W1, W2, epsilon=1e-6):
         if self.Creat_time:
             self.count_layers_num += 1
-
-            self.Wight.append([0])
-            self.Bias.append([0])
+            self.Creat_param(W1, W2) 
             self.kernel.append([0])
-
             return 
-        
-        input = self.Output[-1]
+
+        if not self.optim_time:
+            input = self.Output[self.on_this]
         mean_x = np.mean(input)
         std = np.std(input)
         X_normal = (input - mean_x) / (std + epsilon)
+
+        output = np.dot(X_normal, self.Wight[self.on_this]) + self.Bias[self.on_this]
+
+        self.on_this += 1
+        self.Output[self.on_this] = X_normal
+
+        if self.optim_time:
+            
+            D_A = np.array(self.Output_drev[-1])
+
+            self.W_D.append(np.dot(D_A, X_normal))
+            self.B_D.append(D_A)
+
+            D_Xnorm = np.matmul(D_A, self.Wight[self.on_this].T)
+
+            num = D_A.shape[-1]
+
+            D_X = (1/num) * (1 / (std + epsilon)) * (num * D_Xnorm - np.sum(D_Xnorm, axis=-1, keepdims=True)) - (X_normal * np.sum(np.dot(D_Xnorm, X_normal), axis=-1, keepdims=True))
+
+            self.Output_drev.append(D_X)
+            self.optim(self.optim_type)
+            self.on_this -= 1
+
 
     def Embedding(self):
 

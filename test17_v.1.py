@@ -150,7 +150,6 @@ class NN:
 
     def creat_kernel(self, size):
         kernel = np.random.randn(size, size)
-
         self.kernel.append(kernel)
 
     def conv2D(self, input_image, kernel_size, gradient, stride=1, padding=0, lerning_rate = 0.01,):
