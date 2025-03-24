@@ -610,7 +610,7 @@ class NN:
         
         self.on_this += 1
         for i in self.Output[self.on_this-1]:
-            Z = np.dot(i, np.array(self.Wight[self.on_this-1]).T) + self.Bias[self.on_this-1]# stuck with the shapes in the flatting and dense
+            Z = np.dot(i, np.array(self.Wight[self.on_this-1]).T) + self.Bias[self.on_this-1]
             list_Z = Z.tolist()
             self.Z_output[self.on_this-1].append(list_Z[0])
 
