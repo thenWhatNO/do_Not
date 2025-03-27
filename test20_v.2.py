@@ -677,7 +677,7 @@ class NN:
             self.conv_optim = False
             return
         
-        #?///////////////////////////////////////
+        #?/////////////////////////////////////// loss
 
         filters, kernel_height, kernel_width, cannals= np.shape(self.kernel[self.on_this])
 
@@ -913,7 +913,6 @@ class NN:
         return (2*np.array(y_targ)).tolist()
     
     def categorical_cross_entropy(self, y_true, y_targ):
-
         epsilon = 1e-15
         y_targ = np.clip(y_targ, epsilon, 1 - epsilon)  # Clip predictions
         loss = -np.sum(y_true * np.log(y_targ)) / np.array(y_true).shape[0]
