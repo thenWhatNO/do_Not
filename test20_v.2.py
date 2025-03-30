@@ -321,7 +321,7 @@ class NN:
 
         return A.tolist()
     
-    def multi_head_attention(self, head_num):
+    def multi_head_attention(self, head_num): #V
 
         if self.Creat_time:
 
@@ -482,7 +482,7 @@ class NN:
 
         self.Output_drev.append(self.Output_drev[-1])
 
-    def add_new_words(eslf, words):
+    def add_new_words(self, words):
         for word in words:
             if not (tokins["word"] == word).any():
                 token = np.random.randn(4)
