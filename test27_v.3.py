@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
+import os
 import sys
 
 def one_how(labels, num_class):
@@ -136,8 +137,8 @@ class categorical_cross_entropy:
         y_targ = np.clip(y_targ, epsilon, 1 - epsilon)  # Clip predictions
         return -np.sum(y_true * np.log(y_targ)) / np.array(y_true).shape[0]
     
-    def derivative(self, y_true, y_pred):
-        return (np.array(y_pred) - np.array(y_true))
+    def derivative(self, y_true, y_targ):
+        return (np.array(y_targ) - np.array(y_true))
 
 
 
@@ -238,7 +239,17 @@ class Conv2D:
                 y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
                 region = X[:, y_start:y_end, x_start:x_end, :]
 
-                output[:, y, x, :] = np.tensordot(region, self.kernel, axes=([1,2,3], [1,2,3]))
+                if 1 != region.shape[-1]:
+                    region = np.split(region, X.shape[-1], axis=3)
+                    temp_out = np.zeros(output[:,y,x,:].shape)
+                    for r, k in zip(region, self.kernel):
+                        one = np.tensordot(r, self.kernel, axes=([1,2,3], [1,2,3]))
+                        one = np.squeeze(one, axis=-2)
+                        temp_out += one
+                    output[:,y,x,:] = temp_out
+
+                else:
+                    output[:, y, x, :] = np.tensordot(region, self.kernel, axes=([1,2,3], [1,2,3]))
 
         self.Z_out = output
         self.A_out = self.activation_func.run(output)
@@ -585,6 +596,28 @@ class Optim:
 ###////////////////---opiratoNerual network builder---////////////////////
 
 
+class Show:
+    def __init__(self):
+        self.x_values = []
+        self.y_values = []
+        self.num = 0
+
+    def count(self, new_value):
+        self.y_values.append(new_value)
+        self.x_values.append(self.num)
+
+        #os.system("cls")
+        print(f"loss == {self.y_values[-1]}")
+
+        plt.xlim(0, 100)
+        plt.ylim(0, 100)
+        plt.scatter(self.x_values, self.y_values, color='black')
+        plt.pause(0.001)
+        self.num += 1
+    
+    def show():
+        plt.show()
+
 
 class NN:
     def __init__(self, data, batch, epoch, optimezator, loss):
@@ -592,10 +625,14 @@ class NN:
         self.optim = optimezator
         self.loss = loss
 
+        self.map = Show()
+
         self.batch = batch
         self.epoch = epoch
 
         self.layers = [
+            Conv2D([3,3], Relu(), filter_num=3),
+            Conv2D([3,3], Relu(), filter_num=3),
             Conv2D([3,3], Relu(), filter_num=3),
             Flatten(20),
             Dense(20, 2, Relu(), flatten_befor=True),
@@ -651,8 +688,17 @@ class NN:
                 output = self.farword(x_batch)
 
                 loss = self.loss.derivative(y_batch, output)
+                loss_show = self.loss.loss(y_batch, output)
+
+                self.map.count(loss_show)
+
+                print(f"output == {np.round(output)[-1]},  tgarget == {y_batch[-1]}")
                 
                 self.backword(loss)
+
+        
+
+plt.show()
 
 model = NN(data_set_photo_num_ob, 10, 10, Optim(), categorical_cross_entropy())
 model.fit()
