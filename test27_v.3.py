@@ -8,39 +8,39 @@ import sys
 def one_how(labels, num_class):
     return np.eye(num_class)[labels.astype(int)]
 
+color = True
 
-data_path = "data_2/object_label.csv"
+
+data_path = "data_2/latin_label.csv"
 
 df = pd.read_csv(data_path)
 images= df['image']
 labels = df['targ']
-color = True
 
-one_imag = Image.open(images[0])
+one_imag = Image.open('data_2/latin_data_jpg/' + images[0])
 
 img_array_for_show = []
 img_array = []
 
 for i in images:
-    img = Image.open(i)
+    img = Image.open('data_2/latin_data_jpg/'+ i)
     img_resize = img.resize((30,30))
     if color:
         convort = img_resize.convert('L')
     img_2_array = np.array(convort)
     if color:
         img_clear = np.where(img_2_array > 50.0, 1.0 ,100.0)
-        cannal_up = img_clear[:, :, None]
+        cannal_up = img_clear[:, :, np.newaxis]
     img_one_shot = cannal_up.reshape(1, -1)
         # imf2float = np.zeros_like(cannal_up)
         # for i, img in enumerate(cannal_up):
         #     imf2float[i] = float(img)
     #img_array.append(img_one_shot[0])
-    img_array_for_show.append(cannal_up)
+    img_array_for_show.append(cannal_up.tolist())
 
-one_label = one_how(labels, 3)
+one_label = one_how(labels, 26)
 
-data_set_photo_num_ob = [img_array_for_show, one_label]
-
+data_latine_digets = [img_array_for_show, one_label]
 
 
 ###////////////////---activation function---////////////////////
@@ -87,9 +87,8 @@ class softmax:
         logits_exp = np.exp(x - np.max(x, axis=-1, keepdims=True))
         return logits_exp / np.sum(logits_exp, axis=-1, keepdims=True)
     
-    def derivative(self, x, y):
-        out = self.run(x)
-        return out - y
+    def derivative(self, x): # acually the full function is the loos function that used in the momdel.
+        return np.array([1])
     
 
 class mish:
@@ -214,8 +213,22 @@ class Conv2D:
         
         teta = np.array(boxes).tolist()
         return teta
-
+    
     def run(self, X):
+        self.input = X
+
+        if self.grid:
+            X = self.grid_spliter(X, self.grid_size[0], self.grid_size[1])
+
+        
+
+        if len(np.shape(X)) > 4:
+            for i in X:
+                self.run_kernel(i)
+            
+
+
+    def run_kernel(self, X):
 
         if self.grid:
             X = self.grid_spliter(X, self.grid_size[0], self.grid_size[1])
@@ -244,7 +257,6 @@ class Conv2D:
                     temp_out = np.zeros(output[:,y,x,:].shape)
                     for r, k in zip(region, self.kernel):
                         one = np.tensordot(r, self.kernel, axes=([1,2,3], [1,2,3]))
-                        one = np.squeeze(one, axis=-2)
                         temp_out += one
                     output[:,y,x,:] = temp_out
 
@@ -289,7 +301,7 @@ class poolingMax:
         self.X_shape = None
 
     def run(self, X):
-        self.input = X
+        self.X = X
         self.X_shape = np.shape(X)
 
         I_B, I_H, I_W, I_C = self.X_shape
@@ -297,7 +309,7 @@ class poolingMax:
         O_H = (I_H - self.steps) // self.steps + 1
         O_W = (I_W - self.steps) // self.steps + 1
         
-        output = np.zeros((I_B, O_H, O_W, np.shape(self.kernel)[0]))
+        output = np.zeros((I_B, O_H, O_W, I_C))
 
         for h in range(0, np.shape(output)[1]):
             for w in range(0, np.shape(output)[2]):
@@ -310,14 +322,22 @@ class poolingMax:
     def optim(self, gradint):
         find = 1
 
+        I_B, I_H, I_W, I_C = np.shape(gradint)
+
+        O_H = (I_H - self.steps) // self.steps + 1
+        O_W = (I_W - self.steps) // self.steps + 1
+
+        test_shape = np.zeros((I_B, O_H, O_W, I_C))
         output = np.zeros_like(self.X)
 
-        for h in range(0, np.shape(output)[1]):
-            for w in range(0, np.shape(output)[2]):
+        for h in range(0, np.shape(test_shape)[1]):
+            for w in range(0, np.shape(test_shape)[2]):
                 region = gradint[:, h*self.steps:h*self.steps+self.steps, w*self.steps:w*self.steps+self.steps, :]
                 found_max = np.where(region == np.max(region))
                 found_list = list(zip(found_max[2], found_max[3]))
-                output[:, h*self.steps+found_list[0][0], w*self.steps+found_list[0][1], :] = find
+                one = h*self.steps+found_list[0][0]
+                two = w*self.steps+found_list[0][1]
+                output[:,   h*self.steps+found_list[0][0],   w*self.steps+found_list[0][1],    :] = find
                 find += 1
         return [None], output
     
@@ -326,10 +346,9 @@ class poolingMax:
 
 
 class Flatten:
-    def __init__(self, output_size):
+    def __init__(self):
         self.X = None
         self.X_shape = None
-        self.output_size = output_size
 
     def run(self, X):
         self.X = X
@@ -581,14 +600,14 @@ class Optim:
             hat_M = M / (1-beta1 ** self.time)
             hat_V = V / (1-beta2 ** self.time)
 
-            new_poram.append((self.lern_rate * hat_M / (np.sqrt(hat_V) + epsilon)))
+            new_poram.append((self.lern_rate * (hat_M / (np.sqrt(hat_V) + epsilon))))
         self.time += 1
         return new_poram
     
     def SVM(self, params):
         new_poram = []
         for poram in params:
-            new_poram.append(poram * self.lern_rate)
+            new_poram.append(poram * (self.lern_rate))
         return new_poram
     
 
@@ -607,9 +626,9 @@ class Show:
         self.x_values.append(self.num)
 
         #os.system("cls")
-        print(f"loss == {self.y_values[-1]}")
+        #print(f"loss == {self.y_values[-1]}")
 
-        plt.xlim(0, 100)
+        plt.xlim(0, max(self.x_values)+1)
         plt.ylim(0, 100)
         plt.scatter(self.x_values, self.y_values, color='black')
         plt.pause(0.001)
@@ -632,12 +651,14 @@ class NN:
 
         self.layers = [
             Conv2D([3,3], Relu(), filter_num=3),
+            poolingMax(),
             Conv2D([3,3], Relu(), filter_num=3),
+            poolingMax(),
             Conv2D([3,3], Relu(), filter_num=3),
-            Flatten(20),
-            Dense(20, 2, Relu(), flatten_befor=True),
-            Dense(2, 4, Relu()),
-            Dense(4, 3, Sigmoid())
+            Flatten(),
+            Dense(1, 80, Relu(), flatten_befor=True),
+            Dense(80, 50, Relu()),
+            Dense(50, 26, softmax())
         ]
 
     def Shuffel(self, x, y):
@@ -691,14 +712,12 @@ class NN:
                 loss_show = self.loss.loss(y_batch, output)
 
                 self.map.count(loss_show)
-
-                print(f"output == {np.round(output)[-1]},  tgarget == {y_batch[-1]}")
+                #print(f"output == {np.round(output)[-1]},  tgarget == {y_batch[-1]}, loss == {loss_show}")
                 
                 self.backword(loss)
 
         
-
 plt.show()
 
-model = NN(data_set_photo_num_ob, 10, 10, Optim(), categorical_cross_entropy())
+model = NN(data_latine_digets, 20, 30, Optim(), categorical_cross_entropy())
 model.fit()
