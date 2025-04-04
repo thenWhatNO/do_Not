@@ -194,74 +194,61 @@ class Conv2D:
         self.is_grid = True
         boxes = []
 
-        if len(np.shape(X)) == 3:
-            img_in_work = np.array(img_in_work[None,:,:,:])
-
-        batch_size, input_height, input_width, cannals_num =  np.shape(img_in_work)
+        batch_size, input_height, input_width, cannals_num =  np.shape(X)
 
         H_jump = int(input_height / H_aplit)
         V_jump = int(input_width / V_split)
 
+        boxes = np.zeros((batch_size, H_aplit*V_split, H_jump, V_jump, cannals_num))
+
         for b in range(0, batch_size):
-            boxes.append([])
+            box=0
             for h in range(0, input_height, H_jump):
                 for v in range(0, input_width, V_jump):
                     h_end, v_end = h + H_jump, v + V_jump
 
-                    box = img_in_work[b, h:h_end, v:v_end, :]
-                    boxes[b].append(box)
-        
-        teta = np.array(boxes).tolist()
-        return teta
-    
+                    test_1 = boxes[b, box, :, :, :].tolist()
+                    test = X[b, h:h_end, v:v_end, :].tolist()
+
+                    boxes[b, box, :, :, :] += X[b, h:h_end, v:v_end, :]
+                    box+=1
+
+        return np.array(boxes)
+
     def run(self, X):
-        self.input = X
-
-        if self.grid:
-            X = self.grid_spliter(X, self.grid_size[0], self.grid_size[1])
-
-        
-
-        if len(np.shape(X)) > 4:
-            for i in X:
-                self.run_kernel(i)
-            
-
-
-    def run_kernel(self, X):
-
-        if self.grid:
-            X = self.grid_spliter(X, self.grid_size[0], self.grid_size[1])
-
 
         if self.padding > 0:
-            X = np.pad(X, ((self.padding, self.padding), (self.padding, self.padding)), mode='constant').tolist()
+            X = np.pad(X, ((self.padding, self.padding), (self.padding, self.padding)), mode='constant')
 
         self.input = X
 
-        I_B, I_H, I_W, I_C = X.shape
+        shape_input = X.shape
 
-        O_H = (I_H - np.shape(self.kernel)[1]) // self.stride + 1
-        O_W = (I_W - np.shape(self.kernel)[2]) // self.stride + 1
+        X = X.transpose(*reversed(range(X.ndim)))
+
+        O_H = (shape_input[2] - np.shape(self.kernel)[1]) // self.stride + 1
+        O_W = (shape_input[1] - np.shape(self.kernel)[2]) // self.stride + 1
         
-        output = np.zeros((I_B, O_H, O_W, np.shape(self.kernel)[0]))
+        output = np.zeros((np.shape(self.kernel)[0]), O_W, O_H, shape_input-1)
+        if self.grid:
+            output = np.zeros((np.shape(self.kernel)[0]), O_W, O_H, shape_input-2, shape_input-1)
 
         for y in range(0, O_H):
             for x in range(0, O_W):
                 y_start, x_start = y*self.stride, x*self.stride
                 y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
-                region = X[:, y_start:y_end, x_start:x_end, :]
+                region = X[:, x_start:x_end, y_start:y_end,]
 
                 if 1 != region.shape[-1]:
-                    region = np.split(region, X.shape[-1], axis=3)
+                    region = np.split(region, X.shape[1], axis=3)
                     temp_out = np.zeros(output[:,y,x,:].shape)
                     for r, k in zip(region, self.kernel):
                         one = np.tensordot(r, self.kernel, axes=([1,2,3], [1,2,3]))
                         temp_out += one
-                    output[:,y,x,:] = temp_out
+                    output[:, x, y] = temp_out
 
                 else:
-                    output[:, y, x, :] = np.tensordot(region, self.kernel, axes=([1,2,3], [1,2,3]))
+                    output[:, x, y] = np.tensordot(region, self.kernel, axes=([1,2,3], [1,2,3]))
 
         self.Z_out = output
         self.A_out = self.activation_func.run(output)
@@ -301,6 +288,16 @@ class poolingMax:
         self.X_shape = None
 
     def run(self, X):
+        if len(np.shape(X)) > 4:
+            full_out = []
+            for unit in X:
+                batch_unit = self.run_pool(unit)
+                full_out.append(batch_unit)
+            return full_out
+        else:
+            return self.run_pool(X)
+
+    def run_pool(self, X):
         self.X = X
         self.X_shape = np.shape(X)
 
@@ -650,7 +647,7 @@ class NN:
         self.epoch = epoch
 
         self.layers = [
-            Conv2D([3,3], Relu(), filter_num=3),
+            Conv2D([3,3], Relu(), filter_num=3, grid=True, grid_size=[3,3]),
             poolingMax(),
             Conv2D([3,3], Relu(), filter_num=3),
             poolingMax(),
