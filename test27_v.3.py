@@ -11,26 +11,26 @@ def one_how(labels, num_class):
 color = True
 
 
-data_path = "data_2/latin_label.csv"
+data_path = "data_2/object_label.csv"
 
 df = pd.read_csv(data_path)
 images= df['image']
 labels = df['targ']
 
-one_imag = Image.open('data_2/latin_data_jpg/' + images[0])
+one_imag = Image.open(images[0])
 
 img_array_for_show = []
 img_array = []
 
 for i in images:
-    img = Image.open('data_2/latin_data_jpg/'+ i)
+    img = Image.open(i)
     img_resize = img.resize((30,30))
     if color:
         convort = img_resize.convert('L')
     img_2_array = np.array(convort)
     if color:
         img_clear = np.where(img_2_array > 50.0, 1.0 ,100.0)
-        cannal_up = img_clear[:, :, np.newaxis]
+        cannal_up = img_clear[:, :, None]
     img_one_shot = cannal_up.reshape(1, -1)
         # imf2float = np.zeros_like(cannal_up)
         # for i, img in enumerate(cannal_up):
@@ -38,9 +38,9 @@ for i in images:
     #img_array.append(img_one_shot[0])
     img_array_for_show.append(cannal_up.tolist())
 
-one_label = one_how(labels, 26)
+one_label = one_how(labels, 3)
 
-data_latine_digets = [img_array_for_show, one_label]
+data_set_photo_num_ob = [img_array_for_show, one_label]
 
 
 ###////////////////---activation function---////////////////////
@@ -182,7 +182,7 @@ class Conv2D:
     def __init__(self, kernel_size, activation_func, grid=False, grid_size=[], filter_num = 1, stride=1, padding=0):
         self.stride = stride
         self.padding = padding
-        self.kernel = np.random.randn(filter_num, kernel_size[0], kernel_size[1], 1)
+        self.kernel = np.random.randn(filter_num ,kernel_size[1], kernel_size[0])
         self.Z_out = None
         self.A_out = None
         self.activation_func = activation_func
@@ -222,33 +222,30 @@ class Conv2D:
 
         self.input = X
 
-        shape_input = X.shape
+        if self.grid:
+            X = self.grid_spliter(X, self.grid_size[0], self.grid_size[1])
+
+        shape_input = X.shape[::-1]
 
         X = X.transpose(*reversed(range(X.ndim)))
 
         O_H = (shape_input[2] - np.shape(self.kernel)[1]) // self.stride + 1
         O_W = (shape_input[1] - np.shape(self.kernel)[2]) // self.stride + 1
         
-        output = np.zeros((np.shape(self.kernel)[0]), O_W, O_H, shape_input-1)
+        output = np.zeros(((np.shape(self.kernel)[0]), O_W, O_H, shape_input[-1]))
         if self.grid:
-            output = np.zeros((np.shape(self.kernel)[0]), O_W, O_H, shape_input-2, shape_input-1)
+            output = np.zeros(((np.shape(self.kernel)[0]), O_W, O_H, shape_input[-2], shape_input[-1]))
 
         for y in range(0, O_H):
             for x in range(0, O_W):
-                y_start, x_start = y*self.stride, x*self.stride
-                y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
-                region = X[:, x_start:x_end, y_start:y_end,]
+                for c in range(0, np.shape(self.kernel)[0]):
+                    y_start, x_start = y*self.stride, x*self.stride
+                    y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
+                    region = X[:, x_start:x_end, y_start:y_end]
 
-                if 1 != region.shape[-1]:
-                    region = np.split(region, X.shape[1], axis=3)
-                    temp_out = np.zeros(output[:,y,x,:].shape)
-                    for r, k in zip(region, self.kernel):
-                        one = np.tensordot(r, self.kernel, axes=([1,2,3], [1,2,3]))
-                        temp_out += one
-                    output[:, x, y] = temp_out
+                    output[c, x, y] = np.tensordot(region, self.kernel[c], axes=([1,2], [0,1]))
 
-                else:
-                    output[:, x, y] = np.tensordot(region, self.kernel, axes=([1,2,3], [1,2,3]))
+        output = output.transpose(*reversed(range(output.ndim)))
 
         self.Z_out = output
         self.A_out = self.activation_func.run(output)
@@ -288,25 +285,18 @@ class poolingMax:
         self.X_shape = None
 
     def run(self, X):
-        if len(np.shape(X)) > 4:
-            full_out = []
-            for unit in X:
-                batch_unit = self.run_pool(unit)
-                full_out.append(batch_unit)
-            return full_out
-        else:
-            return self.run_pool(X)
-
-    def run_pool(self, X):
         self.X = X
         self.X_shape = np.shape(X)
 
-        I_B, I_H, I_W, I_C = self.X_shape
+        shape_num = self.X_shape
 
-        O_H = (I_H - self.steps) // self.steps + 1
-        O_W = (I_W - self.steps) // self.steps + 1
+        X = X.transpose(*reversed(range(X.ndim)))
+
+        O_H = (shape_num[2] - self.steps) // self.steps + 1
+        O_W = (shape_num[1] - self.steps) // self.steps + 1
         
-        output = np.zeros((I_B, O_H, O_W, I_C))
+        output = np.zeros((shape_num[0], O_H, O_W, shape_num[-1]))
+        if shape_num
 
         for h in range(0, np.shape(output)[1]):
             for w in range(0, np.shape(output)[2]):
@@ -716,5 +706,5 @@ class NN:
         
 plt.show()
 
-model = NN(data_latine_digets, 20, 30, Optim(), categorical_cross_entropy())
+model = NN(data_set_photo_num_ob, 20, 30, Optim(), categorical_cross_entropy())
 model.fit()
