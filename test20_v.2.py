@@ -243,16 +243,10 @@ class NN:
             self.Dense(None, None, "relu")
             self.Dense(None, None, "relu")
             self.Flatten()
-            self.normalization(None, None)
-            self.multi_head_attention(2)
-            self.positional_encoding()
-            self.Embedding()
+            self.conv2d(3, "relu")
             self.optim_time = False
             return
-        self.Embedding()
-        self.positional_encoding()
-        self.multi_head_attention(2)
-        self.normalization(4,4)
+        self.conv2d(3, "relu")
         out_shape = self.Flatten()
         self.Dense(out_shape, 40 , "relu")
         self.Dense(40, 20, "relu")
@@ -666,7 +660,7 @@ class NN:
 
                             D_K[f, :, :, :] += np.sum(region[:,:,:,:,None] * teta[:,:,None,None,None], axis=(0,1))
                             D_A[:, :, h_start:h_end, w_start:w_end, :] += kernel_for_work[:, f, :, :, :] * teta[:, :, None, None, None]
-
+                                                                                        # 1  3  3  3  3         
             self.kernel_D[-1] = D_K.tolist()
             teta = D_A.tolist()
             self.Output_drev.append(teta)
@@ -1113,6 +1107,6 @@ class NN:
         plt.ioff()
         plt.show()
 
-model = NN(word_data)
+model = NN(data_set_photo_num_ob)
 model.Creat()
 model.fit(30, 7, 'ADAM')

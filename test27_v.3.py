@@ -233,17 +233,19 @@ class Conv2D:
         O_W = (shape_input[1] - np.shape(self.kernel)[2]) // self.stride + 1
         
         output = np.zeros(((np.shape(self.kernel)[0]), O_W, O_H, shape_input[-1]))
-        if self.grid:
+        if len(shape_input) > 4:
             output = np.zeros(((np.shape(self.kernel)[0]), O_W, O_H, shape_input[-2], shape_input[-1]))
 
-        for y in range(0, O_H):
-            for x in range(0, O_W):
+        for x in range(0, O_W):
+            for y in range(0, O_H):
                 for c in range(0, np.shape(self.kernel)[0]):
                     y_start, x_start = y*self.stride, x*self.stride
                     y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
                     region = X[:, x_start:x_end, y_start:y_end]
+                    if shape_input[0] > 1:
+                        region = X[c, None,  x_start:x_end,  y_start:y_end]
 
-                    output[c, x, y] = np.tensordot(region, self.kernel[c], axes=([1,2], [0,1]))
+                    output[c, x, y] = np.tensordot(region,  self.kernel[c], axes=([1,2], [0,1]))
 
         output = output.transpose(*reversed(range(output.ndim)))
 
@@ -252,26 +254,30 @@ class Conv2D:
         return self.A_out
 
     def optim(self, gradint):
-        D_A = np.zeros_like(self.input)
-        D_K = np.zeros_like(self.kernel)
+        D_A = np.zeros(self.input.shape[::-1])
+        D_K = np.zeros(self.kernel.shape[::-1])
         gradint = np.array(gradint)
+        gradint = gradint.transpose(*reversed(range(gradint.ndim)))
+
+        X = self.input.transpose(*reversed(range(self.input.ndim)))
 
         D_Z = self.activation_func.derivative(self.Z_out)
+        D_Z = D_Z.transpose(*reversed(range(D_Z.ndim)))
 
         for f in range(0, np.shape(self.kernel)[0]):
-            for y in range(0, np.shape(gradint)[1]):
-                for x in range(0, np.shape(gradint)[2]):
-                    for c in range(0, np.shape(gradint)[-1]):
-                        y_start, x_start = y*self.stride, x*self.stride
-                        y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
-                        
-                        region = self.input[:, y_start:y_end, x_start:x_end, :]
-                        teta = (gradint[:,y,x,f] * D_Z[:,y,x,f])
+            for x in range(0, np.shape(gradint)[1]):
+                for y in range(0, np.shape(gradint)[2]):
+                    y_start, x_start = y*self.stride, x*self.stride
+                    y_end, x_end = y_start + np.shape(self.kernel)[2], x_start + np.shape(self.kernel)[1]
+                    
+                    region = X[:, x_start:x_end, y_start:y_end]
+                    teta = (gradint[f,x,y] * D_Z[f,x,y])
 
-                        D_K[f,:,:,:] += np.sum(region[:,:,:] * teta[:,None,None,None])
-                        D_A[:,y_start:y_end, x_start:x_end, :] += self.kernel[f,:,:,:] * teta[:, None,None,None]
-
+                    D_K[f] += np.sum(region* teta[None,None,None,:])
+                    D_A[:,x_start:x_end, y_start:y_end] += self.kernel[f,:,:,None,None] * teta[None,None,:]
         
+        D_A = D_A.transpose(*reversed(range(D_A.ndim)))
+
         return [D_K], D_A
 
     def update_param(self, parameters):
@@ -288,7 +294,7 @@ class poolingMax:
         self.X = X
         self.X_shape = np.shape(X)
 
-        shape_num = self.X_shape
+        shape_num = self.X_shape[::-1]
 
         X = X.transpose(*reversed(range(X.ndim)))
 
@@ -296,36 +302,44 @@ class poolingMax:
         O_W = (shape_num[1] - self.steps) // self.steps + 1
         
         output = np.zeros((shape_num[0], O_H, O_W, shape_num[-1]))
-        if shape_num
-
-        for h in range(0, np.shape(output)[1]):
+        if len(shape_num) > 4:
+            output = np.zeros((shape_num[0], O_H, O_W, shape_num[-2], shape_num[-1]))
+        for c in range(shape_num[0]):
             for w in range(0, np.shape(output)[2]):
-                region = X[:, h*self.steps:h*self.steps+self.steps, w*self.steps:w*self.steps+self.steps, :]
-                max_found = np.max(region)
-                output[:, h, w, :] = max_found
+                for h in range(0, np.shape(output)[1]):
+                    for img in range(0, shape_num[3]):
+                        region = X[c,   w*self.steps:w*self.steps+self.steps,   h*self.steps:h*self.steps+self.steps,   img]
+                        max_found = np.max(region)
+                        output[c, w, h, img] = max_found
+
+        output = output.transpose(*reversed(range(output.ndim)))
 
         return output
 
     def optim(self, gradint):
+
+        gradint = gradint.transpose(*reversed(range(gradint.ndim)))
+
         find = 1
 
-        I_B, I_H, I_W, I_C = np.shape(gradint)
 
-        O_H = (I_H - self.steps) // self.steps + 1
-        O_W = (I_W - self.steps) // self.steps + 1
 
-        test_shape = np.zeros((I_B, O_H, O_W, I_C))
         output = np.zeros_like(self.X)
+        output = output.transpose(*reversed(range(output.ndim)))
+        for c in range(0, np.shape(output)[0]):
+            for w in range(0, np.shape(output)[1]):
+                for h in range(0, np.shape(output)[2]):
+                    for img in range(0, np.shape(output)[3]):
+                        region = gradint[c,  w*self.steps:w*self.steps+self.steps,   h*self.steps:h*self.steps+self.steps,  img]
+                        found_max = np.where(region == np.max(region))
+                        found_list = list(zip(found_max[0], found_max[1]))
+                        one = h*self.steps+found_list[0][0]
+                        two = w*self.steps+found_list[0][1]
+                        output[:,   w*self.steps+found_list[0][1],   h*self.steps+found_list[0][0], :] = find
+                        find += 1
 
-        for h in range(0, np.shape(test_shape)[1]):
-            for w in range(0, np.shape(test_shape)[2]):
-                region = gradint[:, h*self.steps:h*self.steps+self.steps, w*self.steps:w*self.steps+self.steps, :]
-                found_max = np.where(region == np.max(region))
-                found_list = list(zip(found_max[2], found_max[3]))
-                one = h*self.steps+found_list[0][0]
-                two = w*self.steps+found_list[0][1]
-                output[:,   h*self.steps+found_list[0][0],   w*self.steps+found_list[0][1],    :] = find
-                find += 1
+        output = output.transpose(*reversed(range(output.ndim))).tolist()
+
         return [None], output
     
     def update_param(self, parameters):
@@ -626,7 +640,7 @@ class Show:
 
 
 class NN:
-    def __init__(self, data, batch, epoch, optimezator, loss):
+    def __init__(self, layers,  data, batch, epoch, optimezator, loss):
         self.X_data, self.Y_data = data[0], data[1]
         self.optim = optimezator
         self.loss = loss
@@ -636,17 +650,7 @@ class NN:
         self.batch = batch
         self.epoch = epoch
 
-        self.layers = [
-            Conv2D([3,3], Relu(), filter_num=3, grid=True, grid_size=[3,3]),
-            poolingMax(),
-            Conv2D([3,3], Relu(), filter_num=3),
-            poolingMax(),
-            Conv2D([3,3], Relu(), filter_num=3),
-            Flatten(),
-            Dense(1, 80, Relu(), flatten_befor=True),
-            Dense(80, 50, Relu()),
-            Dense(50, 26, softmax())
-        ]
+        self.layers = layers
 
     def Shuffel(self, x, y):
         assert len(y) == len(x)
@@ -706,5 +710,14 @@ class NN:
         
 plt.show()
 
-model = NN(data_set_photo_num_ob, 20, 30, Optim(), categorical_cross_entropy())
+model = NN([Conv2D([3,3], Relu(), filter_num=3, grid=True, grid_size=[3,3]),
+            poolingMax(),
+            Conv2D([3,3], Relu(), filter_num=3),
+            Flatten(),
+            Dense(1, 80, Relu(), flatten_befor=True),
+            Dense(80, 50, Relu()),
+            Dense(50, 3, softmax())],
+        data_set_photo_num_ob, 20, 30, Optim(), categorical_cross_entropy())
 model.fit()
+
+Model_1 = []
