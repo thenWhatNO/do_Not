@@ -214,6 +214,16 @@ class Conv2D:
                     box+=1
 
         return np.array(boxes)
+    
+    def revers_split(self, X):
+        
+        Batch, G, Y, x, C = X.shape
+        assert G == self.grid_size[0] * self.grid_size[1], "ahhhhhhh"
+
+        X = X.reshape(Batch, self.grid_size[0], self.grid_size[1], Y, x, C)
+        X = X.transpose(0,1,3,2,4,5)
+        X = X.reshape(Batch, self.grid_size[0]*Y, self.grid_size[1]*x, C)
+        return X
 
     def run(self, X):
 
@@ -257,13 +267,18 @@ class Conv2D:
         D_A = np.zeros(self.input.shape[::-1])
         D_K = np.zeros(self.kernel.shape[::-1])
         gradint = np.array(gradint)
-        gradint = gradint.transpose(*reversed(range(gradint.ndim)))
-
-        X = self.input.transpose(*reversed(range(self.input.ndim)))
-
         D_Z = self.activation_func.derivative(self.Z_out)
-        D_Z = D_Z.transpose(*reversed(range(D_Z.ndim)))
+        X = self.input
+        
+        if self.grid:
+            #X = self.grid_spliter(X, self.grid_size[0], self.grid_size[1])
+            gradint = self.revers_split(gradint)
+            D_Z = self.revers_split(D_Z)
 
+        gradint = gradint.transpose(*reversed(range(gradint.ndim)))
+        X = X.transpose(*reversed(range(X.ndim)))
+        D_Z = D_Z.transpose(*reversed(range(D_Z.ndim)))
+        
         for f in range(0, np.shape(self.kernel)[0]):
             for x in range(0, np.shape(gradint)[1]):
                 for y in range(0, np.shape(gradint)[2]):
@@ -274,7 +289,10 @@ class Conv2D:
                     teta = (gradint[f,x,y] * D_Z[f,x,y])
 
                     D_K[f] += np.sum(region* teta[None,None,None,:])
-                    D_A[:,x_start:x_end, y_start:y_end] += self.kernel[f,:,:,None,None] * teta[None,None,:]
+                    opa = self.kernel[f,:,:,None,None] * teta[None,None,:]
+                    if self.grid:
+                        opa = np.transpose(opa, (2,0,1,3))
+                    D_A[:,x_start:x_end, y_start:y_end] += opa
         
         D_A = D_A.transpose(*reversed(range(D_A.ndim)))
 
@@ -294,51 +312,46 @@ class poolingMax:
         self.X = X
         self.X_shape = np.shape(X)
 
-        shape_num = self.X_shape[::-1]
-
-        X = X.transpose(*reversed(range(X.ndim)))
+        shape_num = self.X_shape
 
         O_H = (shape_num[2] - self.steps) // self.steps + 1
         O_W = (shape_num[1] - self.steps) // self.steps + 1
         
-        output = np.zeros((shape_num[0], O_H, O_W, shape_num[-1]))
-        if len(shape_num) > 4:
-            output = np.zeros((shape_num[0], O_H, O_W, shape_num[-2], shape_num[-1]))
-        for c in range(shape_num[0]):
-            for w in range(0, np.shape(output)[2]):
-                for h in range(0, np.shape(output)[1]):
-                    for img in range(0, shape_num[3]):
-                        region = X[c,   w*self.steps:w*self.steps+self.steps,   h*self.steps:h*self.steps+self.steps,   img]
-                        max_found = np.max(region)
-                        output[c, w, h, img] = max_found
+        output = np.zeros((shape_num[0], O_H, O_W, shape_num[-1]))[:,None]
+        if len(shape_num) >= 5:
+            output = np.zeros((shape_num[0], shape_num[1], O_H, O_W, shape_num[-1]))
 
-        output = output.transpose(*reversed(range(output.ndim)))
+        for img in range(shape_num[0]):
+            for box in range(0, np.shape(output)[1]):
+                for h in range(0, np.shape(output)[2]):
+                    for w in range(0, np.shape(output)[3]):
+                        for c in range(0, shape_num[4]):
+                            region = X[img, box, h*self.steps:h*self.steps+self.steps,  w*self.steps:w*self.steps+self.steps,  c]
+                            max_found = np.max(region)
+                            output[img, h, w, c] = max_found
+
+        self.Z = output
 
         return output
 
     def optim(self, gradint):
 
-        gradint = gradint.transpose(*reversed(range(gradint.ndim)))
-
-        find = 1
-
-
-
         output = np.zeros_like(self.X)
-        output = output.transpose(*reversed(range(output.ndim)))
-        for c in range(0, np.shape(output)[0]):
-            for w in range(0, np.shape(output)[1]):
-                for h in range(0, np.shape(output)[2]):
-                    for img in range(0, np.shape(output)[3]):
-                        region = gradint[c,  w*self.steps:w*self.steps+self.steps,   h*self.steps:h*self.steps+self.steps,  img]
-                        found_max = np.where(region == np.max(region))
-                        found_list = list(zip(found_max[0], found_max[1]))
-                        one = h*self.steps+found_list[0][0]
-                        two = w*self.steps+found_list[0][1]
-                        output[:,   w*self.steps+found_list[0][1],   h*self.steps+found_list[0][0], :] = find
-                        find += 1
+        if len(output.shape) < 5:
+            output = output[:,None]
 
-        output = output.transpose(*reversed(range(output.ndim))).tolist()
+        for img in range(0, np.shape(output)[0]):
+            for box in range(0, np.shape(output)[1]):
+                find = 1
+                for h in range(0, np.shape(gradint)[2]):
+                    for w in range(0, np.shape(gradint)[3]):
+                        for c in range(0, np.shape(output)[4]):
+                            region = self.X[img, box, h*self.steps:h*self.steps+self.steps,   w*self.steps:w*self.steps+self.steps,   c]
+                            found_max = np.where(region == np.max(region))
+                            found_list = list(zip(found_max[0], found_max[1]))
+                            one = h*self.steps+found_list[0][0]
+                            two = w*self.steps+found_list[0][1]
+                            output[img, box,  h*self.steps+found_list[0][0],  w*self.steps+found_list[0][1],    c] = gradint[img, box, h, w, c]
 
         return [None], output
     
