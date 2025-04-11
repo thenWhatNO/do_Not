@@ -178,28 +178,23 @@ class Dense:
         self.Bios -= parameters[1]
 
 
-class Conv2D:
-    def __init__(self, kernel_size, activation_func, grid=False, grid_size=[], filter_num = 1, stride=1, padding=0):
-        self.stride = stride
-        self.padding = padding
-        self.kernel = np.random.randn(filter_num ,kernel_size[1], kernel_size[0])
+class Grid:
+    def __init__(self, grid_size=[], flatten_befor=False):
+        self.flatten_befor = flatten_befor
         self.Z_out = None
-        self.A_out = None
-        self.activation_func = activation_func
-        self.input = None
-        self.grid = grid
+        self.X = None
         self.grid_size = grid_size
 
-    def grid_spliter(self, X, H_aplit, V_split):
+    def run(self, X):
         self.is_grid = True
         boxes = []
 
         batch_size, input_height, input_width, cannals_num =  np.shape(X)
 
-        H_jump = int(input_height / H_aplit)
-        V_jump = int(input_width / V_split)
+        H_jump = int(input_height / self.grid_size[0])
+        V_jump = int(input_width / self.grid_size[1])
 
-        boxes = np.zeros((batch_size, H_aplit*V_split, H_jump, V_jump, cannals_num))
+        boxes = np.zeros((batch_size, self.grid_size[0] * self.grid_size[1], H_jump, V_jump, cannals_num))
 
         for b in range(0, batch_size):
             box=0
@@ -212,39 +207,59 @@ class Conv2D:
 
                     boxes[b, box, :, :, :] += X[b, h:h_end, v:v_end, :]
                     box+=1
-
-        return np.array(boxes)
+        return 
     
-    def revers_split(self, X):
-        
+    def optim(self, gradint):
         Batch, G, Y, x, C = X.shape
         assert G == self.grid_size[0] * self.grid_size[1], "ahhhhhhh"
 
         X = X.reshape(Batch, self.grid_size[0], self.grid_size[1], Y, x, C)
         X = X.transpose(0,1,3,2,4,5)
         X = X.reshape(Batch, self.grid_size[0]*Y, self.grid_size[1]*x, C)
-        return X
+        return [None], X
+    
+    def update_param(self, parameters):
+        pass
+
+
+class Conv2D:
+    def __init__(self, kernel_size, activation_func, grid=False, filter_num = 1, stride=1, padding=0):
+        self.stride = stride
+        self.padding = padding
+        self.kernel = np.random.randn(filter_num ,kernel_size[1], kernel_size[0])
+        self.Z_out = None
+        self.A_out = None
+        self.activation_func = activation_func
+        self.input = None
+        self.grid = grid
+    
+    def region(self, X, x, y, batch, channal):
+        y_start, x_start = y*self.stride, x*self.stride
+        y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
+
+        if self.grid:
+            return X[x_start:x_end, y_start:y_end]
+        if not self.grid:
+            return X[x_start:x_end, y_start:y_end]
+
 
     def run(self, X):
-
         if self.padding > 0:
             X = np.pad(X, ((self.padding, self.padding), (self.padding, self.padding)), mode='constant')
 
-        self.input = X
-
-        if self.grid:
-            X = self.grid_spliter(X, self.grid_size[0], self.grid_size[1])
+        self.input = X # chacke if the data is gridet
+        if len(X.shape) < 4:
+            self.grid = True
 
         shape_input = X.shape[::-1]
-
         X = X.transpose(*reversed(range(X.ndim)))
 
         O_H = (shape_input[2] - np.shape(self.kernel)[1]) // self.stride + 1
         O_W = (shape_input[1] - np.shape(self.kernel)[2]) // self.stride + 1
         
-        output = np.zeros(((np.shape(self.kernel)[0]), O_W, O_H, shape_input[-1]))
-        if len(shape_input) > 4:
-            output = np.zeros(((np.shape(self.kernel)[0]), O_W, O_H, shape_input[-2], shape_input[-1]))
+        output = np.zeros((np.shape(self.kernel)[0], O_W, O_H, shape_input[-1]))
+        if self.grid:
+            output = np.zeros((np.shape(self.kernel)[0], O_W, O_H, shape_input[-2], shape_input[-1]))
 
         for x in range(0, O_W):
             for y in range(0, O_H):
@@ -254,7 +269,6 @@ class Conv2D:
                     region = X[:, x_start:x_end, y_start:y_end]
                     if shape_input[0] > 1:
                         region = X[c, None,  x_start:x_end,  y_start:y_end]
-
                     output[c, x, y] = np.tensordot(region,  self.kernel[c], axes=([1,2], [0,1]))
 
         output = output.transpose(*reversed(range(output.ndim)))
@@ -271,7 +285,6 @@ class Conv2D:
         X = self.input
         
         if self.grid:
-            #X = self.grid_spliter(X, self.grid_size[0], self.grid_size[1])
             gradint = self.revers_split(gradint)
             D_Z = self.revers_split(D_Z)
 
@@ -307,29 +320,44 @@ class poolingMax:
         self.X = None
         self.steps = steps
         self.X_shape = None
+        self.grid = False
+    
+    def region(self, X, w, h, batch, channal):
+        start_w, start_h = h*self.steps, w*self.steps
+        end_w, end_h = h*self.steps+self.steps, w*self.steps+self.steps
+
+        if self.grid:
+            return X[batch, :, start_h:end_h, start_w:end_w, channal]
+        if not self.grid:
+            return X[batch, start_h:end_h, start_w:end_w, channal]
 
     def run(self, X):
         self.X = X
         self.X_shape = np.shape(X)
+        if len(self.X_shape) > 4:
+            self.grid = True
 
         shape_num = self.X_shape
 
         O_H = (shape_num[2] - self.steps) // self.steps + 1
         O_W = (shape_num[1] - self.steps) // self.steps + 1
         
-        output = np.zeros((shape_num[0], O_H, O_W, shape_num[-1]))[:,None]
-        if len(shape_num) >= 5:
+        output = np.zeros((shape_num[0], O_H, O_W, shape_num[-1]))
+        if self.grid:
             output = np.zeros((shape_num[0], shape_num[1], O_H, O_W, shape_num[-1]))
 
         for img in range(shape_num[0]):
-            for box in range(0, np.shape(output)[1]):
-                for h in range(0, np.shape(output)[2]):
-                    for w in range(0, np.shape(output)[3]):
-                        for c in range(0, shape_num[4]):
-                            region = X[img, box, h*self.steps:h*self.steps+self.steps,  w*self.steps:w*self.steps+self.steps,  c]
-                            max_found = np.max(region)
-                            output[img, h, w, c] = max_found
-
+                for h in range(0, np.shape(output)[-3]):
+                    for w in range(0, np.shape(output)[-2]):
+                        for c in range(0, np.shape(output)[-1]):
+                            region = self.region(X, w, h, img, c)
+                            if self.grid:
+                                for box in range(0, np.shape(output)[1]):
+                                    max_find = np.max(region[box])
+                                    output[img, box, h, w, c] = max_find
+                            else:
+                                max_found = np.max(region)
+                                output[img, h, w, c] = max_found
         self.Z = output
 
         return output
@@ -703,6 +731,7 @@ class NN:
 
         self.X_data, self.Y_data = self.Shuffel(self.X_data, self.Y_data)
         val_data_x, val_data_y, train_data_x, train_data_y = self.split(self.X_data, self.Y_data)
+        loss_show = []
 
         for epoh in range(self.epoch):
             for batch in range(0, len(train_data_x), self.batch):
@@ -713,17 +742,18 @@ class NN:
                 output = self.farword(x_batch)
 
                 loss = self.loss.derivative(y_batch, output)
-                loss_show = self.loss.loss(y_batch, output)
+                loss_show.append(self.loss.loss(y_batch, output))
 
-                self.map.count(loss_show)
+                self.map.count(loss_show[-1])
                 #print(f"output == {np.round(output)[-1]},  tgarget == {y_batch[-1]}, loss == {loss_show}")
                 
                 self.backword(loss)
-
+        return loss_show
         
 plt.show()
 
-model = NN([Conv2D([3,3], Relu(), filter_num=3, grid=True, grid_size=[3,3]),
+model = NN([Grid([3,3]),
+            Conv2D([3,3], Relu(), filter_num=3),
             poolingMax(),
             Conv2D([3,3], Relu(), filter_num=3),
             Flatten(),
@@ -731,6 +761,17 @@ model = NN([Conv2D([3,3], Relu(), filter_num=3, grid=True, grid_size=[3,3]),
             Dense(80, 50, Relu()),
             Dense(50, 3, softmax())],
         data_set_photo_num_ob, 20, 30, Optim(), categorical_cross_entropy())
-model.fit()
+loss = model.fit()
+print(f"model : 1  ---- avrag loss : {np.average(loss)}")
 
-Model_1 = []
+
+model1 = NN([Conv2D([3,3], Relu(), filter_num=3),
+            poolingMax(),
+            Conv2D([3,3], Relu(), filter_num=3),
+            Flatten(),
+            Dense(1, 80, Relu(), flatten_befor=True),
+            Dense(80, 50, Relu()),
+            Dense(50, 3, softmax())],
+        data_set_photo_num_ob, 20, 30, Optim(), categorical_cross_entropy())
+loss1 = model1.fit()
+print(f"model : 2  ---- avrag loss : {np.average(loss1)}")
