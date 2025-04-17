@@ -5,12 +5,25 @@ from PIL import Image
 import os
 import sys
 
+toke_lib = "tokens.csv"
+
 def one_how(labels, num_class):
     return np.eye(num_class)[labels.astype(int)]
 
+##################### ---------- token/text data ------------
+
+data_path = "data_2/words_label.csv"
+
+df = pd.read_csv(data_path)
+sentens= df['sentenc'].tolist()
+labels = np.array(df['targ'])
+
+eye_labols = one_how(labels, 2)
+
+word_data = [sentens, eye_labols]
+
+##################### ---------- img data object detection ------------
 color = True
-
-
 data_path = "data_2/object_label.csv"
 
 df = pd.read_csv(data_path)
@@ -144,9 +157,8 @@ class categorical_cross_entropy:
 ###////////////////---leyars---////////////////////
 
 
-
 class Dense:
-    def __init__(self, input, output, activation_func, flatten_befor=False):
+    def __init__(self, input, output, activation_func=None, flatten_befor=False):
         self.output = output
         self.Wight = np.random.randn(output, input) * np.sqrt(2. / input)
         self.Bios = np.random.randn(1, output)
@@ -162,30 +174,52 @@ class Dense:
             self.Wight = np.random.randn(self.output, np.shape(X)[-1]) * np.sqrt(2. / np.shape(X)[-1])
             self.flatten_befor = False
         self.Z_out = np.matmul(X, self.Wight.T) + self.Bios
-        self.A_out = self.activation_func.run(self.Z_out)
-        return self.A_out
+        if self.activation_func != None:
+            self.A_out = self.activation_func.run(self.Z_out)
+            return self.A_out
+        return self.Z_out
     
     def optim(self, gradint):
-         D_Z = gradint * self.activation_func.derivative(self.Z_out) # how to get the shape (10,1,3)
-         D_W = np.matmul(D_Z.T, self.X)
-         D_B = np.sum(D_Z, axis=0, keepdims=True)
-         D_A = np.matmul(gradint, self.Wight)
+        D_Z = gradint
+        if self.activation_func != None:
+            D_Z = gradint * self.activation_func.derivative(self.Z_out)
+        D_W = np.matmul(D_Z.T, self.X)
+        D_B = np.sum(D_Z, axis=0, keepdims=True)
+        D_A = np.matmul(gradint, self.Wight)
 
-         return [D_W, D_B], D_A
+        return [D_W, D_B], D_A
     
     def update_param(self, parameters):
         self.Wight -= parameters[0]
         self.Bios -= parameters[1]
 
 
+class Reshape_output:
+    def __init__(self, shape=()):
+        self.X = None
+        self.new_shape = shape
+
+    def run(self, X):
+        try:
+            return np.reshape(X, self.new_shape)
+        except Exception as e:
+            raise
+
+    def optim(self, gradint):
+        pass
+    def update_param(self, parameters):
+        pass
+
+
 class Grid:
     def __init__(self, grid_size=[], flatten_befor=False):
         self.flatten_befor = flatten_befor
-        self.Z_out = None
         self.X = None
         self.grid_size = grid_size
 
     def run(self, X):
+        self.X = X
+
         self.is_grid = True
         boxes = []
 
@@ -207,9 +241,10 @@ class Grid:
 
                     boxes[b, box, :, :, :] += X[b, h:h_end, v:v_end, :]
                     box+=1
-        return 
+        return boxes
     
     def optim(self, gradint):
+        X = gradint
         Batch, G, Y, x, C = X.shape
         assert G == self.grid_size[0] * self.grid_size[1], "ahhhhhhh"
 
@@ -233,14 +268,14 @@ class Conv2D:
         self.input = None
         self.grid = grid
     
-    def region(self, X, x, y, batch, channal):
+    def region(self, X, b, x, y):
         y_start, x_start = y*self.stride, x*self.stride
         y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
 
         if self.grid:
-            return X[x_start:x_end, y_start:y_end]
+            return X[b, :, y_start:y_end, x_start:x_end, :]
         if not self.grid:
-            return X[x_start:x_end, y_start:y_end]
+            return X[b, y_start:y_end, x_start:x_end, :]
 
 
     def run(self, X):
@@ -248,66 +283,59 @@ class Conv2D:
             X = np.pad(X, ((self.padding, self.padding), (self.padding, self.padding)), mode='constant')
 
         self.input = X # chacke if the data is gridet
-        if len(X.shape) < 4:
+        if len(X.shape) > 4:
             self.grid = True
 
-        shape_input = X.shape[::-1]
-        X = X.transpose(*reversed(range(X.ndim)))
+        shape_input = X.shape
 
-        O_H = (shape_input[2] - np.shape(self.kernel)[1]) // self.stride + 1
-        O_W = (shape_input[1] - np.shape(self.kernel)[2]) // self.stride + 1
+        O_H = (shape_input[1] - np.shape(self.kernel)[1]) // self.stride + 1
+        O_W = (shape_input[2] - np.shape(self.kernel)[2]) // self.stride + 1
         
-        output = np.zeros((np.shape(self.kernel)[0], O_W, O_H, shape_input[-1]))
+        output = np.zeros((shape_input[0], O_H, O_W, np.shape(self.kernel)[0]))
         if self.grid:
-            output = np.zeros((np.shape(self.kernel)[0], O_W, O_H, shape_input[-2], shape_input[-1]))
-
-        for x in range(0, O_W):
-            for y in range(0, O_H):
-                for c in range(0, np.shape(self.kernel)[0]):
-                    y_start, x_start = y*self.stride, x*self.stride
-                    y_end, x_end = y_start + np.shape(self.kernel)[1], x_start + np.shape(self.kernel)[2]
-                    region = X[:, x_start:x_end, y_start:y_end]
-                    if shape_input[0] > 1:
-                        region = X[c, None,  x_start:x_end,  y_start:y_end]
-                    output[c, x, y] = np.tensordot(region,  self.kernel[c], axes=([1,2], [0,1]))
-
-        output = output.transpose(*reversed(range(output.ndim)))
+            O_H = (shape_input[2] - np.shape(self.kernel)[1]) // self.stride + 1
+            O_W = (shape_input[3] - np.shape(self.kernel)[2]) // self.stride + 1
+            output = np.zeros((shape_input[0], shape_input[1], O_H, O_W, np.shape(self.kernel)[0]))
+        
+        for b in range(shape_input[0]):
+            for y in range(0, O_W):
+                for x in range(0, O_H):
+                    for c in range(0, np.shape(self.kernel)[0]):
+                        region = self.region(X, b, x, y)
+                        if self.grid:
+                            for box in range(shape_input[1]):
+                                output[b, box, y, x, c] += np.sum(region[box] * self.kernel[c])
+                        else:
+                            output[b, y, x, c] += np.sum(region * self.kernel[c])
 
         self.Z_out = output
         self.A_out = self.activation_func.run(output)
         return self.A_out
 
     def optim(self, gradint):
-        D_A = np.zeros(self.input.shape[::-1])
-        D_K = np.zeros(self.kernel.shape[::-1])
+        D_A = np.zeros(self.input.shape)
+        D_K = np.zeros(self.kernel.shape)
         gradint = np.array(gradint)
         D_Z = self.activation_func.derivative(self.Z_out)
         X = self.input
         
-        if self.grid:
-            gradint = self.revers_split(gradint)
-            D_Z = self.revers_split(D_Z)
+        for b in range(0, np.shape(gradint)[0]):
+            for y in range(0, np.shape(gradint)[-3]):
+                for x in range(0, np.shape(gradint)[-2]):
+                    for c in range(0, np.shape(self.kernel)[0]):
+                        region = self.region(X, b, y, x)
 
-        gradint = gradint.transpose(*reversed(range(gradint.ndim)))
-        X = X.transpose(*reversed(range(X.ndim)))
-        D_Z = D_Z.transpose(*reversed(range(D_Z.ndim)))
-        
-        for f in range(0, np.shape(self.kernel)[0]):
-            for x in range(0, np.shape(gradint)[1]):
-                for y in range(0, np.shape(gradint)[2]):
-                    y_start, x_start = y*self.stride, x*self.stride
-                    y_end, x_end = y_start + np.shape(self.kernel)[2], x_start + np.shape(self.kernel)[1]
-                    
-                    region = X[:, x_start:x_end, y_start:y_end]
-                    teta = (gradint[f,x,y] * D_Z[f,x,y])
-
-                    D_K[f] += np.sum(region* teta[None,None,None,:])
-                    opa = self.kernel[f,:,:,None,None] * teta[None,None,:]
-                    if self.grid:
-                        opa = np.transpose(opa, (2,0,1,3))
-                    D_A[:,x_start:x_end, y_start:y_end] += opa
-        
-        D_A = D_A.transpose(*reversed(range(D_A.ndim)))
+                        if self.grid:
+                            teta = (gradint[b,:,y,x] * D_Z[b,:,y,x])
+                            opa = self.kernel[c,None,:,:] * teta[:,:,None]
+                            D_K[c] += np.sum(region * teta[:, :, None, None])
+                            D_A[b, :,  y:y+self.kernel.shape[0],   x:x+self.kernel.shape[1]] += opa[:,:,:,None]
+                        else:
+                            teta = (gradint[b,y,x] * D_Z[b,y,x])
+                            opa = self.kernel[c,:,:] * teta[:,None]
+                            D_K[c] += np.sum(region * teta[:, None, None])
+                            testy = D_A[b, y:y+self.kernel.shape[0],   x:x+self.kernel.shape[1]]
+                            D_A[b, y:y+self.kernel.shape[0],   x:x+self.kernel.shape[1]] += opa[:,:,None]
 
         return [D_K], D_A
 
@@ -365,21 +393,22 @@ class poolingMax:
     def optim(self, gradint):
 
         output = np.zeros_like(self.X)
-        if len(output.shape) < 5:
-            output = output[:,None]
 
-        for img in range(0, np.shape(output)[0]):
-            for box in range(0, np.shape(output)[1]):
-                find = 1
-                for h in range(0, np.shape(gradint)[2]):
-                    for w in range(0, np.shape(gradint)[3]):
-                        for c in range(0, np.shape(output)[4]):
-                            region = self.X[img, box, h*self.steps:h*self.steps+self.steps,   w*self.steps:w*self.steps+self.steps,   c]
-                            found_max = np.where(region == np.max(region))
-                            found_list = list(zip(found_max[0], found_max[1]))
-                            one = h*self.steps+found_list[0][0]
-                            two = w*self.steps+found_list[0][1]
-                            output[img, box,  h*self.steps+found_list[0][0],  w*self.steps+found_list[0][1],    c] = gradint[img, box, h, w, c]
+        for b in range(0, np.shape(output)[0]):
+                for y in range(0, np.shape(gradint)[-3]):
+                    for x in range(0, np.shape(gradint)[-2]):
+                        for c in range(0, np.shape(output)[-1]):
+                            region = self.region(self.X, y, x, b, c)
+
+                            if self.grid:
+                                for i, img in enumerate(region):
+                                    found_max = np.where(img == np.max(img))
+                                    found_list = list(zip(found_max[0], found_max[1]))
+                                    output[b, i, y*self.steps+found_list[0][0],  x*self.steps+found_list[0][1],    c] = gradint[b, i, y, x, c]
+                            else:
+                                found_max = np.where(region == np.max(region))
+                                found_list = list(zip(found_max[0], found_max[1]))
+                                output[b, y*self.steps+found_list[0][0],  x*self.steps+found_list[0][1],    c] = gradint[b, y, x, c]
 
         return [None], output
     
@@ -415,7 +444,7 @@ class Flatten:
 
 
 class multi_head_attention:
-    def __init__(self, head_num):
+    def __init__(self, head_num, non_masked=False, add=False):
         self.Q_w = np.random.randn(4, 4) * np.sqrt(2. / 4)
         self.K_w = np.random.randn(4, 4) * np.sqrt(2. / 4)
         self.V_w = np.random.randn(4, 4) * np.sqrt(2. / 4)
@@ -423,6 +452,10 @@ class multi_head_attention:
         self.X = None
         self.output = None
         self.head_num = head_num
+        self.add = add
+
+        self.masked = non_masked
+        self.encoder_X = None
 
     def split_or_mix(self, X, num_heads, action):
         if action == 'split':
@@ -440,14 +473,19 @@ class multi_head_attention:
 
             return X.reshape(batch_size, seq_length, d_model)
 
-    def run(self, X):
+    def run(self, X, enencoder_X=0):
         self.X = X
+        self.encoder_X = enencoder_X
         self.D_model = np.shape(X)[-1]
         depth_per_head = self.D_model // self.head_num
 
+        if self.masked:
+            K = np.matmul(self.encoder_X, self.K_w)
+            V = np.matmul(self.encoder_X, self.V_w)
+        else:
+            K = np.matmul(X, self.K_w)
+            V = np.matmul(X, self.V_w)
         Q = np.matmul(X, self.Q_w)
-        K = np.matmul(X, self.K_w)
-        V = np.matmul(X, self.V_w)
 
         self.Q_heads = self.split_or_mix(Q, self.head_num, "split")
         self.K_heads = self.split_or_mix(K, self.head_num, "split")
@@ -462,17 +500,23 @@ class multi_head_attention:
         scaling = np.sqrt(depth_per_head)
         for i in range(self.head_num):
             self.score.append(np.matmul(self.Q_heads[:, i], self.K_heads[:, i].transpose(0,2,1)) / scaling)
-            self.attantion_w.append(softmax(self.score[i]))
+            self.attantion_w.append(softmax.run(None, self.score[i]))
             self.attantion_out.append(np.matmul(self.attantion_w[i], self.V_heads[:, i]))
 
         self.attantion_out = np.stack(self.attantion_out, axis=1)
         self.combain_out = self.split_or_mix(self.attantion_out, self.head_num, "mix")
 
         O = np.dot(self.combain_out, self.O_w)
+
+        if self.add:
+            O = X + O
+
         return O
     
     def optim(self, gradint):
         D_O = np.matmul(gradint, self.O_w.swapaxes(-1,-2))
+        test1 = self.combain_out.reshape(-1, self.D_model).T
+        test2 = D_O.reshape(-1, self.D_model)
         D_wo = np.matmul(self.combain_out.reshape(-1, self.D_model).T, D_O.reshape(-1, self.D_model))
         split_D_O = self.split_or_mix(D_O, self.head_num, "split")
         d_k = []
@@ -484,7 +528,7 @@ class multi_head_attention:
             d_v.append(D_V_head)
 
             d_attantion_w = np.matmul(split_D_O[:,i,:,:], self.V_heads[:,i].swapaxes(-1,-2))
-            d_scale = d_attantion_w * softmax.derivative(self.attantion_w[i])
+            d_scale = d_attantion_w * softmax.derivative(None, self.attantion_w[i])
 
             D_Q_head = np.matmul(d_scale, self.K_heads[:,i])
             D_k_head = np.matmul(d_scale, self.Q_heads[:,i])
@@ -498,6 +542,13 @@ class multi_head_attention:
     
         d_A = np.matmul(d_q, self.Q_w.T) + np.matmul(d_k, self.K_w.T) + np.matmul(d_v, self.V_w)
 
+        d_k = np.mean(d_k, axis=0)
+        d_q = np.mean(d_q, axis=0)
+        d_v = np.mean(d_v, axis=0)
+        d_A = np.mean(d_A, axis=0)
+
+        if self.masked:
+            return [d_q, d_k, d_v, D_wo], d_A, (d_k @ self.K_w.T) + (d_v @ self.V_w.T)
         return [d_q, d_k, d_v, D_wo], d_A
 
     def update_param(self, parameters):
@@ -532,9 +583,11 @@ class positional_encoding:
 
 
 class Embedding:
-    def __init__(self, link):
+    def __init__(self, link, updata_token=False):
         self.link = link
         self.tabel = pd.read_csv(link)
+        self.X = None
+        self.updata_token = updata_token
 
     def add_new_words(self, words):
         for word in words:
@@ -545,23 +598,31 @@ class Embedding:
 
         self.tabel.to_csv('tokens.csv', index=False)
 
-        print("the program stap work becouse of new data get added to the tokkins data \n reset the program to keep work")
+        print("the program stap work becouse of new data get added to the tokkins data \nreset the program to keep work")
         sys.exit()
 
     def run(self, X):
+        self.X = X
         self.output = []
 
         for sentens in X:
             input_word = sentens.strip().split()
             row = self.tabel[self.tabel['word'].isin(input_word)]
-            word = row["word"]
+            word = row["word"].tolist()
+            tabel_words = self.tabel["word"].values.tolist()
 
-            if len(word) < len(input_word):
+            if word in tabel_words:
                 self.add_new_words(input_word)
+            
+            yesy = row["token"].tolist()
 
-            token = row["token"]
-            ids = row["id"]
-            token_correct = np.array([np.genfromtxt([row.strip("[]")], delimiter=",") for row in token])
+            token = []
+            for wod in input_word:
+                element = row[row['word'] == wod]
+                token.append(element["token"].tolist()[0])
+            token_correct = np.array([np.genfromtxt([i.strip("[]")], delimiter=",") for i in token])
+            if token_correct.size == 0:
+                token_correct = np.zeros([1,4])
             self.output.append(token_correct)
         return self.output
     
@@ -575,14 +636,15 @@ class Embedding:
             row = self.tabel[self.tabel['word'].isin(input_word)]
 
             token_data = self.output[i]
-            id = row["id"]
+            id = row["id"].tolist()
 
             for i, word in enumerate(input_word):
                 match_row = self.tabel.loc[self.tabel['word'].isin([word]), "token"]
                 if not match_row.empty:
                     update = np.array2string(token_data[i], separator=',')
                     self.tabel.at[id[i], "token"] = update
-        self.tabel.to_csv(self.link, index=False)
+        if self.updata_token:
+            self.tabel.to_csv(self.link, index=False)
         return [None], output
     
     def update_param(self, parameters):
@@ -590,11 +652,16 @@ class Embedding:
 
 
 class normalization:
-    def __init__(self, epsilon=1e-6):
-        self.W1 = np.random.randn(4, 4) * np.sqrt(2. / 4)
-        self.W2 = np.random.randn(4, 4) * np.sqrt(2. / 4)
+    def __init__(self, out=None, epsilon=1e-6):
+        self.W1 = None
+        self.W2 = None
         self.epsilon = epsilon
         self.X = None
+        self.out = out
+
+    def creat_param(self, inp, outp):
+        self.W1 = np.random.randn(outp, inp) * np.sqrt(2. / 4)
+        self.W2 = np.random.randn(1, inp) * np.sqrt(2. / 4)
 
     def run(self, X):
         self.X = X
@@ -602,12 +669,23 @@ class normalization:
         self.std = np.std(X)
         self.X_normal = (X - mean_X) / (self.std + self.epsilon)
 
-        output = np.dot(self.X_normal, self.W1) + self.W2
+        if self.W1 == None or self.W2:
+            self.creat_param(X.shape[-2], X.shape[-1]) if self.out == None else self.creat_param(X.shape[-2], self.out)
+
+        output = np.matmul(self.X_normal, self.W1) + self.W2
         return output
     
     def optim(self, gradint):
-        d_W1 = np.dot(gradint, self.X_normal)
-        d_W2 = gradint
+        gradint = np.array(gradint)
+
+        if len(gradint) > 2:
+            d_W1 = np.matmul(gradint, self.X_normal)
+            d_W2 = np.sum(gradint, axis=1, keepdims=True)
+            d_W1 = np.mean(d_W1 , axis=0)
+            d_W2 = np.mean(d_W2 , axis=0)
+        else:
+            d_W1 = np.matmul(gradint, self.X_normal)
+            d_W2 = np.sum(gradint, axis=0, keepdims=True)
 
         D_x_normal = np.matmul(gradint, self.W1)
         num = np.shape(gradint)[-1]
@@ -617,8 +695,8 @@ class normalization:
         return [d_W1, d_W2], d_X
     
     def update_param(self, parameters):
-        self.W1 = parameters[0]
-        self.W2 = parameters[1]
+        self.W1 -= parameters[0]
+        self.W2 -= parameters[1]
 
 ###////////////////---opirators---////////////////////
     
@@ -681,12 +759,13 @@ class Show:
 
 
 class NN:
-    def __init__(self, layers,  data, batch, epoch, optimezator, loss):
+    def __init__(self, layers,  data, batch, epoch, optimezator, loss, show=False):
         self.X_data, self.Y_data = data[0], data[1]
         self.optim = optimezator
         self.loss = loss
 
         self.map = Show()
+        self.show = show
 
         self.batch = batch
         self.epoch = epoch
@@ -726,6 +805,7 @@ class NN:
             if params[0] is not None:
                 new_params = self.optim.Adam(params)
                 layer.update_param(new_params)
+        return gradient
 
     def fit(self):
 
@@ -744,34 +824,166 @@ class NN:
                 loss = self.loss.derivative(y_batch, output)
                 loss_show.append(self.loss.loss(y_batch, output))
 
-                self.map.count(loss_show[-1])
-                #print(f"output == {np.round(output)[-1]},  tgarget == {y_batch[-1]}, loss == {loss_show}")
+                if self.show:
+                    self.map.count(loss_show[-1])
+                    #print(f"output == {np.round(output)[-1]},  tgarget == {y_batch[-1]}, loss == {loss_show}")
                 
-                self.backword(loss)
+                grid = self.backword(loss)
+                plt.show()
         return loss_show
+    
+
+
+class Decoder:
+    def __init__(self, layers, optimezator):
+        self.layers = layers
+        self.optim = optimezator
+
+    def farword(self, X, encoder_X):
+        data_layer = X
+        for layer in self.layers:
+
+            try:
+                if layer.masked:
+                    data_layer = layer.run(data_layer, enencoder_X=encoder_X)
+            except Exception as e:
+                data_layer = layer.run(data_layer)
+
+        return data_layer
+    
+    def backword(self, gradient):
+        grad = gradient
+        encoder_grod = None
+        for layer in reversed(self.layers):
+
+            try:
+                params, grad, encoder_grod = layer.optim(grad)
+            except Exception as e:
+                params, grad = layer.optim(grad)
+
+            if params[0] is not None:
+                new_params = self.optim.Adam(params)
+                layer.update_param(new_params)
+
+        return gradient, encoder_grod
+    
+
+
+
+class Transformer:
+    def __init__(self, layers, data, optimezator, loss, epoch):
+        self.X_data, self.Y_data = data[0], data[1]
+        self.layers = layers
+        self.optim = optimezator
+        self.loss = loss
+        self.epoch = epoch
+
+        self.none_masked_data = None
+
+    def farword(self, X, full_X):
+        input = X
+        for i, layer in enumerate(self.layers):
+            if i == 0:
+                self.none_masked_data = layer.farword(full_X)
+            if i > 0:
+                try:
+                    input = layer.farword(input, self.none_masked_data)
+                except Exception as e:
+                    print(f"cant pass layer number : {i}")
+        return input
+
+    def backword(self, grid):
+        gradient = grid
+        embed_grid = None
+        for i, layer in enumerate(reversed(self.layers)):
+            try:
+                gradient, embed_grid = layer.backword(gradient)
+            except Exception as e:
+                if "too many positional arguments" in str(e): 
+                    gradient = layer.backword(gradient)
+                else:
+                    raise
+        return gradient
+
+    def fit(self, token_store=Embedding(toke_lib)):
+        masked_data = ""
+        lossing = []
+        for i in range(self.epoch):
+            for ind, full_data in enumerate(self.X_data):
+                split_data = full_data.strip().split()
+                masked_data = np.random.choice(["<pad>"], (np.shape(split_data)))
+                for index, element in enumerate(split_data):
+                    masked_data[index] = element
+                    masked_text = np.array([' '.join(map(str, masked_data.flatten()))])
+
+                    output = self.farword(masked_text, np.array([full_data]))
+
+                    target = token_store.run([split_data[index+1]])
+
+                    loss = self.loss.derivative(target[0], output)
+                    lossing.append(self.loss.loss(target[0], output))
+                    gradient = self.backword(loss)
         
-plt.show()
 
-model = NN([Grid([3,3]),
-            Conv2D([3,3], Relu(), filter_num=3),
-            poolingMax(),
-            Conv2D([3,3], Relu(), filter_num=3),
+# model = NN([Grid([3,3]),
+#             Conv2D([3,3], Relu(), filter_num=3),
+#             poolingMax(),
+#             Conv2D([3,3], Relu(), filter_num=3),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 50, Relu()),
+#             Dense(50, 3, softmax())],
+#         data_set_photo_num_ob, 20, 5, Optim(), categorical_cross_entropy())
+# loss = model.fit()
+# print(f"model : 1  \"grid data\"  ---- avrag loss : {np.average(loss)}")
+
+# model1 = NN([Conv2D([3,3], Relu(), filter_num=3),
+#             poolingMax(),
+#             Conv2D([3,3], Relu(), filter_num=3),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 50, Relu()),
+#             Dense(50, 3, softmax())],
+#         data_set_photo_num_ob, 20, 5, Optim(), categorical_cross_entropy())
+# loss1 = model1.fit()
+# print(f"model : 2  \"non grid data\"  ---- avrag loss : {np.average(loss1)}")
+
+model2 = NN([Embedding(toke_lib),
+            positional_encoding(),
+            multi_head_attention(2),
+            normalization(),
             Flatten(),
             Dense(1, 80, Relu(), flatten_befor=True),
-            Dense(80, 50, Relu()),
-            Dense(50, 3, softmax())],
-        data_set_photo_num_ob, 20, 30, Optim(), categorical_cross_entropy())
-loss = model.fit()
-print(f"model : 1  ---- avrag loss : {np.average(loss)}")
+            Dense(80, 2, Relu())],
+        word_data, 3, 1, Optim(), categorical_cross_entropy())
+loss2 = model2.fit()
+print(f"model : 3 \"transformer\"  ---- avrag loss : {np.average(loss2)}")
 
 
-model1 = NN([Conv2D([3,3], Relu(), filter_num=3),
-            poolingMax(),
-            Conv2D([3,3], Relu(), filter_num=3),
+encoder1 = NN([Embedding(toke_lib),
+            positional_encoding(),
+            multi_head_attention(2),
+            normalization(),
             Flatten(),
             Dense(1, 80, Relu(), flatten_befor=True),
-            Dense(80, 50, Relu()),
-            Dense(50, 3, softmax())],
-        data_set_photo_num_ob, 20, 30, Optim(), categorical_cross_entropy())
-loss1 = model1.fit()
-print(f"model : 2  ---- avrag loss : {np.average(loss1)}")
+            Dense(80, 16, Relu()),
+            normalization(out=16),
+            Reshape_output(shape=(1,4,4))],
+        word_data, 20, 1, Optim(), categorical_cross_entropy())
+
+decoder1 = Decoder([
+            Embedding(toke_lib),
+            positional_encoding(),
+            multi_head_attention(2),
+            normalization(),
+            multi_head_attention(2, non_masked=True),
+            Flatten(),
+            Dense(1, 80, Relu(), flatten_befor=True),
+            Dense(80, 16, Relu()),
+            Dense(16, 4, softmax()),
+            normalization(out=4)], Optim())
+
+trans_model = Transformer([encoder1,
+                           decoder1],
+                           word_data, Optim(), categorical_cross_entropy(), 5)
+trans_model.fit()
