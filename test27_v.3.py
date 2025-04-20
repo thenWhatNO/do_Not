@@ -197,16 +197,20 @@ class Dense:
 class Reshape_output:
     def __init__(self, shape=()):
         self.X = None
+        self.X_shape = None
         self.new_shape = shape
 
     def run(self, X):
+        self.X_shape = X.shape
         try:
             return np.reshape(X, self.new_shape)
         except Exception as e:
             raise
 
     def optim(self, gradint):
-        pass
+        gradint = np.reshape(gradint, (self.X_shape))
+        return [None], gradint
+    
     def update_param(self, parameters):
         pass
 
@@ -515,8 +519,6 @@ class multi_head_attention:
     
     def optim(self, gradint):
         D_O = np.matmul(gradint, self.O_w.swapaxes(-1,-2))
-        test1 = self.combain_out.reshape(-1, self.D_model).T
-        test2 = D_O.reshape(-1, self.D_model)
         D_wo = np.matmul(self.combain_out.reshape(-1, self.D_model).T, D_O.reshape(-1, self.D_model))
         split_D_O = self.split_or_mix(D_O, self.head_num, "split")
         d_k = []
@@ -545,7 +547,6 @@ class multi_head_attention:
         d_k = np.mean(d_k, axis=0)
         d_q = np.mean(d_q, axis=0)
         d_v = np.mean(d_v, axis=0)
-        d_A = np.mean(d_A, axis=0)
 
         if self.masked:
             return [d_q, d_k, d_v, D_wo], d_A, (d_k @ self.K_w.T) + (d_v @ self.V_w.T)
@@ -631,19 +632,23 @@ class Embedding:
 
         self.output -= np.array(gradint) * 0.01
 
-        for i, sentens in enumerate(self.X):
-            input_word = sentens.strip().split()
-            row = self.tabel[self.tabel['word'].isin(input_word)]
 
-            token_data = self.output[i]
-            id = row["id"].tolist()
-
-            for i, word in enumerate(input_word):
-                match_row = self.tabel.loc[self.tabel['word'].isin([word]), "token"]
-                if not match_row.empty:
-                    update = np.array2string(token_data[i], separator=',')
-                    self.tabel.at[id[i], "token"] = update
         if self.updata_token:
+            for i, sentens in enumerate(self.X):
+                input_word = sentens.strip().split()
+                row = self.tabel[self.tabel['word'].isin(input_word)]
+
+                id = []
+                token_data = self.output[i]
+                for wordy in input_word: ## work to make id like word in teh run function
+                    el = row[row['word'] == wordy]
+                    id.append(el["id"].tolist()[0])
+
+                for i, word in enumerate(input_word):
+                    match_row = self.tabel.loc[self.tabel['word'].isin([word]), "token"]
+                    if not match_row.empty:
+                        update = np.array2string(token_data[i], separator=',')
+                        self.tabel.at[id[i], "token"] = update
             self.tabel.to_csv(self.link, index=False)
         return [None], output
     
@@ -653,8 +658,8 @@ class Embedding:
 
 class normalization:
     def __init__(self, out=None, epsilon=1e-6):
-        self.W1 = None
-        self.W2 = None
+        self.W1 = []
+        self.W2 = []
         self.epsilon = epsilon
         self.X = None
         self.out = out
@@ -669,8 +674,8 @@ class normalization:
         self.std = np.std(X)
         self.X_normal = (X - mean_X) / (self.std + self.epsilon)
 
-        if self.W1 == None or self.W2:
-            self.creat_param(X.shape[-2], X.shape[-1]) if self.out == None else self.creat_param(X.shape[-2], self.out)
+        if np.size(self.W1) == 0 or np.size(self.W2) == 0:
+            self.creat_param(X.shape[-1], X.shape[-1]) if self.out == None else self.creat_param(X.shape[-1], self.out)
 
         output = np.matmul(self.X_normal, self.W1) + self.W2
         return output
@@ -678,19 +683,23 @@ class normalization:
     def optim(self, gradint):
         gradint = np.array(gradint)
 
-        if len(gradint) > 2:
+        if len(gradint.shape) > 2:
             d_W1 = np.matmul(gradint, self.X_normal)
             d_W2 = np.sum(gradint, axis=1, keepdims=True)
             d_W1 = np.mean(d_W1 , axis=0)
             d_W2 = np.mean(d_W2 , axis=0)
         else:
-            d_W1 = np.matmul(gradint, self.X_normal)
+            d_W1 = np.matmul(gradint.T, self.X_normal)
             d_W2 = np.sum(gradint, axis=0, keepdims=True)
 
         D_x_normal = np.matmul(gradint, self.W1)
         num = np.shape(gradint)[-1]
 
-        d_X = (1/num) * (1/(self.std + self.epsilon)) * (num * D_x_normal - np.sum(D_x_normal, axis=-1, keepdims=True)) - ( D_x_normal * np.sum(np.dot(D_x_normal, self.X_normal), axis=-1, keepdims=True))
+
+        if len(gradint.shape) > 2:
+            d_X = (1/num) * (1/(self.std + self.epsilon)) * (num * D_x_normal - np.sum(D_x_normal, axis=-1, keepdims=True)) - ( D_x_normal * np.sum(np.matmul(D_x_normal, self.X_normal.transpose(0,2,1)), axis=-1, keepdims=True))
+        else:
+            d_X = (1/num) * (1/(self.std + self.epsilon)) * (num * D_x_normal - np.sum(D_x_normal, axis=-1, keepdims=True)) - ( D_x_normal * np.sum(np.matmul(D_x_normal, self.X_normal.T), axis=-1, keepdims=True))
 
         return [d_W1, d_W2], d_X
     
@@ -700,15 +709,13 @@ class normalization:
 
 ###////////////////---opirators---////////////////////
     
-
-
-class Optim:
+class Adam:
     def __init__(self, lerning_rate=0.01):
         self.lern_rate = lerning_rate
 
         self.time = 1
 
-    def Adam(self, params, beta1=0.9, beta2=0.999, epsilon=1e-8):
+    def run(self, params, beta1=0.9, beta2=0.999, epsilon=1e-8):
         new_poram = []
         for poram in params:
             M = np.zeros_like(poram)
@@ -724,7 +731,12 @@ class Optim:
         self.time += 1
         return new_poram
     
-    def SVM(self, params):
+
+class SVM:
+    def __init__(self, lerning_rate=0.01):
+        self.lern_rate = lerning_rate
+    
+    def run(self, params):
         new_poram = []
         for poram in params:
             new_poram.append(poram * (self.lern_rate))
@@ -732,7 +744,7 @@ class Optim:
     
 
 
-###////////////////---opiratoNerual network builder---////////////////////
+###////////////////---Nerual network builder---////////////////////
 
 
 class Show:
@@ -801,9 +813,12 @@ class NN:
         grad = gradient
         for layer in reversed(self.layers):
             params, grad = layer.optim(grad)
+
+            if np.any(np.isnan(grad)):
+                print(f"epoch : {i}, ")
             
             if params[0] is not None:
-                new_params = self.optim.Adam(params)
+                new_params = self.optim.run(params)
                 layer.update_param(new_params)
         return gradient
 
@@ -829,7 +844,6 @@ class NN:
                     #print(f"output == {np.round(output)[-1]},  tgarget == {y_batch[-1]}, loss == {loss_show}")
                 
                 grid = self.backword(loss)
-                plt.show()
         return loss_show
     
 
@@ -846,6 +860,9 @@ class Decoder:
             try:
                 if layer.masked:
                     data_layer = layer.run(data_layer, enencoder_X=encoder_X)
+                else:
+                    data_layer = layer.run(data_layer)
+
             except Exception as e:
                 data_layer = layer.run(data_layer)
 
@@ -857,26 +874,30 @@ class Decoder:
         for layer in reversed(self.layers):
 
             try:
-                params, grad, encoder_grod = layer.optim(grad)
+                if layer.masked:
+                    params, grad, encoder_grod = layer.optim(grad)
+                else:
+                    params, grad = layer.optim(grad)
             except Exception as e:
                 params, grad = layer.optim(grad)
 
             if params[0] is not None:
-                new_params = self.optim.Adam(params)
+                new_params = self.optim.run(params)
                 layer.update_param(new_params)
 
         return gradient, encoder_grod
-    
-
 
 
 class Transformer:
-    def __init__(self, layers, data, optimezator, loss, epoch):
+    def __init__(self, layers, data, optimezator, loss, epoch, show=False):
         self.X_data, self.Y_data = data[0], data[1]
         self.layers = layers
         self.optim = optimezator
         self.loss = loss
         self.epoch = epoch
+
+        self.show = show
+        self.map = Show()
 
         self.none_masked_data = None
 
@@ -890,19 +911,21 @@ class Transformer:
                     input = layer.farword(input, self.none_masked_data)
                 except Exception as e:
                     print(f"cant pass layer number : {i}")
+                    raise
         return input
 
     def backword(self, grid):
         gradient = grid
         embed_grid = None
         for i, layer in enumerate(reversed(self.layers)):
-            try:
-                gradient, embed_grid = layer.backword(gradient)
-            except Exception as e:
-                if "too many positional arguments" in str(e): 
-                    gradient = layer.backword(gradient)
+                if i == 0:
+                    gradient, embed_grid = layer.backword(gradient)
                 else:
-                    raise
+                    try:
+                        gradient = layer.backword(embed_grid)
+                    except Exception as e:
+                        print(f"cant pass layer number : {i} reversed")
+                        raise
         return gradient
 
     def fit(self, token_store=Embedding(toke_lib)):
@@ -915,27 +938,48 @@ class Transformer:
                 for index, element in enumerate(split_data):
                     masked_data[index] = element
                     masked_text = np.array([' '.join(map(str, masked_data.flatten()))])
+                    try:
+                        target = token_store.run([split_data[index+1]])
+                    except Exception as e:
+                        break
 
                     output = self.farword(masked_text, np.array([full_data]))
-
-                    target = token_store.run([split_data[index+1]])
+                    if np.any(np.isnan(output)):
+                        print(f"epoch : {i}, ")
 
                     loss = self.loss.derivative(target[0], output)
                     lossing.append(self.loss.loss(target[0], output))
-                    gradient = self.backword(loss)
-        
 
-# model = NN([Grid([3,3]),
-#             Conv2D([3,3], Relu(), filter_num=3),
-#             poolingMax(),
-#             Conv2D([3,3], Relu(), filter_num=3),
-#             Flatten(),
-#             Dense(1, 80, Relu(), flatten_befor=True),
-#             Dense(80, 50, Relu()),
-#             Dense(50, 3, softmax())],
-#         data_set_photo_num_ob, 20, 5, Optim(), categorical_cross_entropy())
-# loss = model.fit()
-# print(f"model : 1  \"grid data\"  ---- avrag loss : {np.average(loss)}")
+                    if self.show:
+                        self.map.count(lossing[-1])
+
+                    gradient = self.backword(loss)
+
+
+model = NN([Grid([3,3]),
+            Conv2D([3,3], Relu(), filter_num=3),
+            poolingMax(),
+            Conv2D([3,3], Relu(), filter_num=3),
+            Flatten(),
+            Dense(1, 80, Relu(), flatten_befor=True),
+            Dense(80, 50, Relu()),
+            Dense(50, 3, softmax())],
+        data_set_photo_num_ob, 20, 5, Adam(), categorical_cross_entropy(), show=False)
+loss = model.fit()
+print(f"model : 1  \"Adam\"  ---- avrag loss : {np.average(loss)}")
+
+model = NN([Grid([3,3]),
+            Conv2D([3,3], Relu(), filter_num=3),
+            poolingMax(),
+            Conv2D([3,3], Relu(), filter_num=3),
+            Flatten(),
+            Dense(1, 80, Relu(), flatten_befor=True),
+            Dense(80, 50, Relu()),
+            Dense(50, 3, softmax())],
+        data_set_photo_num_ob, 20, 5, SVM(), categorical_cross_entropy(), show=False)
+loss = model.fit()
+print(f"model : 2  \"SVM\"  ---- avrag loss : {np.average(loss)}")
+
 
 # model1 = NN([Conv2D([3,3], Relu(), filter_num=3),
 #             poolingMax(),
@@ -944,20 +988,22 @@ class Transformer:
 #             Dense(1, 80, Relu(), flatten_befor=True),
 #             Dense(80, 50, Relu()),
 #             Dense(50, 3, softmax())],
-#         data_set_photo_num_ob, 20, 5, Optim(), categorical_cross_entropy())
+#         data_set_photo_num_ob, 20, 5, Optim(), categorical_cross_entropy(), show=True)
 # loss1 = model1.fit()
 # print(f"model : 2  \"non grid data\"  ---- avrag loss : {np.average(loss1)}")
 
-model2 = NN([Embedding(toke_lib),
-            positional_encoding(),
-            multi_head_attention(2),
-            normalization(),
-            Flatten(),
-            Dense(1, 80, Relu(), flatten_befor=True),
-            Dense(80, 2, Relu())],
-        word_data, 3, 1, Optim(), categorical_cross_entropy())
-loss2 = model2.fit()
-print(f"model : 3 \"transformer\"  ---- avrag loss : {np.average(loss2)}")
+# plt.show()
+
+# model2 = NN([Embedding(toke_lib),
+#             positional_encoding(),
+#             multi_head_attention(2),
+#             normalization(),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 2, Relu())],
+#         word_data, 3, 1, Optim(), categorical_cross_entropy())
+# loss2 = model2.fit()
+# print(f"model : 3 \"transformer\"  ---- avrag loss : {np.average(loss2)}")
 
 
 encoder1 = NN([Embedding(toke_lib),
@@ -983,7 +1029,7 @@ decoder1 = Decoder([
             Dense(16, 4, softmax()),
             normalization(out=4)], Optim())
 
-trans_model = Transformer([encoder1,
-                           decoder1],
-                           word_data, Optim(), categorical_cross_entropy(), 5)
-trans_model.fit()
+# trans_model = Transformer([encoder1,
+#                            decoder1],
+#                            word_data, Optim(), categorical_cross_entropy(), 50, show=True)
+# trans_model.fit()
