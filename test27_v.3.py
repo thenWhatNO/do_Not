@@ -10,6 +10,33 @@ toke_lib = "tokens.csv"
 def one_how(labels, num_class):
     return np.eye(num_class)[labels.astype(int)]
 
+##################### ---------- clasture data ------------
+
+
+n_samples_per_cluster = 50  
+n_features = 2        
+n_clusters = 4
+
+means = [(-2, -2), (2, 2), (-2, 2), (2, -2)]
+std_devs = [0.5, 0.5, 0.5, 0.5]
+
+data_x = np.zeros((n_samples_per_cluster * n_clusters, n_features))
+data_y = np.zeros(n_samples_per_cluster * n_clusters)
+
+for i in range(n_clusters):
+    data_x[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = np.random.normal(
+        loc=means[i], scale=std_devs[i], size=(n_samples_per_cluster, n_features))
+    data_y[i * n_samples_per_cluster:(i + 1) * n_samples_per_cluster] = i
+
+data_y_one_hot = one_how(data_y, n_clusters)
+
+plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
+plt.show()
+
+data_set1 = [data_x, data_y_one_hot]
+
+
+
 ##################### ---------- token/text data ------------
 
 data_path = "data_2/words_label.csv"
@@ -832,7 +859,9 @@ class NN:
             for batch in range(0, len(train_data_x), self.batch):
 
                 x_batch = train_data_x[batch:batch + self.batch]
+                print(x_batch)
                 y_batch = train_data_y[batch:batch + self.batch]
+                print(y_batch)
 
                 output = self.farword(x_batch)
 
@@ -956,29 +985,44 @@ class Transformer:
                     gradient = self.backword(loss)
 
 
-model = NN([Grid([3,3]),
-            Conv2D([3,3], Relu(), filter_num=3),
-            poolingMax(),
-            Conv2D([3,3], Relu(), filter_num=3),
-            Flatten(),
-            Dense(1, 80, Relu(), flatten_befor=True),
-            Dense(80, 50, Relu()),
-            Dense(50, 3, softmax())],
-        data_set_photo_num_ob, 20, 5, Adam(), categorical_cross_entropy(), show=False)
-loss = model.fit()
-print(f"model : 1  \"Adam\"  ---- avrag loss : {np.average(loss)}")
 
-model = NN([Grid([3,3]),
-            Conv2D([3,3], Relu(), filter_num=3),
-            poolingMax(),
-            Conv2D([3,3], Relu(), filter_num=3),
-            Flatten(),
-            Dense(1, 80, Relu(), flatten_befor=True),
-            Dense(80, 50, Relu()),
-            Dense(50, 3, softmax())],
-        data_set_photo_num_ob, 20, 5, SVM(), categorical_cross_entropy(), show=False)
-loss = model.fit()
-print(f"model : 2  \"SVM\"  ---- avrag loss : {np.average(loss)}")
+
+data = np.array([[1,2,3],
+                [4,5,6],
+                [7,8,9]])
+target = np.array([2,2,2])
+
+dates = [data, target]
+
+test_model = NN([Dense(2,10, Relu()),
+                 Dense(10,4, softmax())], data_set1, 1, 10, SVM(), BinaryCrossEntropy(), show=True)
+looooos = test_model.fit()
+
+
+# model = NN([Grid([3,3]),
+#             Conv2D([3,3], Relu(), filter_num=3),
+#             poolingMax(),
+#             Conv2D([3,3], Relu(), filter_num=3),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 50, Relu()),
+#             Dense(50, 3, softmax())],
+#         data_set_photo_num_ob, 20, 5, Adam(), categorical_cross_entropy(), show=False)
+# loss = model.fit()
+# print(f"model : 1  \"Adam\"  ---- avrag loss : {np.average(loss)}")
+
+# model = NN([Grid([3,3]),
+            
+#             Conv2D([3,3], Relu(), filter_num=3),
+#             poolingMax(),
+#             Conv2D([3,3], Relu(), filter_num=3),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 50, Relu()),
+#             Dense(50, 3, softmax())],
+#         data_set_photo_num_ob, 20, 5, SVM(), categorical_cross_entropy(), show=False)
+# loss = model.fit()
+# print(f"model : 2  \"SVM\"  ---- avrag loss : {np.average(loss)}")
 
 
 # model1 = NN([Conv2D([3,3], Relu(), filter_num=3),
@@ -988,7 +1032,7 @@ print(f"model : 2  \"SVM\"  ---- avrag loss : {np.average(loss)}")
 #             Dense(1, 80, Relu(), flatten_befor=True),
 #             Dense(80, 50, Relu()),
 #             Dense(50, 3, softmax())],
-#         data_set_photo_num_ob, 20, 5, Optim(), categorical_cross_entropy(), show=True)
+#         data_set_photo_num_ob, 20, 5, Adam(), categorical_cross_entropy(), show=True)
 # loss1 = model1.fit()
 # print(f"model : 2  \"non grid data\"  ---- avrag loss : {np.average(loss1)}")
 
@@ -1006,30 +1050,30 @@ print(f"model : 2  \"SVM\"  ---- avrag loss : {np.average(loss)}")
 # print(f"model : 3 \"transformer\"  ---- avrag loss : {np.average(loss2)}")
 
 
-encoder1 = NN([Embedding(toke_lib),
-            positional_encoding(),
-            multi_head_attention(2),
-            normalization(),
-            Flatten(),
-            Dense(1, 80, Relu(), flatten_befor=True),
-            Dense(80, 16, Relu()),
-            normalization(out=16),
-            Reshape_output(shape=(1,4,4))],
-        word_data, 20, 1, Optim(), categorical_cross_entropy())
+# encoder1 = NN([Embedding(toke_lib),
+#             positional_encoding(),
+#             multi_head_attention(2),
+#             normalization(),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 16, Relu()),
+#             normalization(out=16),
+#             Reshape_output(shape=(1,4,4))],
+#         word_data, 20, 1, Adam(), categorical_cross_entropy())
 
-decoder1 = Decoder([
-            Embedding(toke_lib),
-            positional_encoding(),
-            multi_head_attention(2),
-            normalization(),
-            multi_head_attention(2, non_masked=True),
-            Flatten(),
-            Dense(1, 80, Relu(), flatten_befor=True),
-            Dense(80, 16, Relu()),
-            Dense(16, 4, softmax()),
-            normalization(out=4)], Optim())
+# decoder1 = Decoder([
+#             Embedding(toke_lib),
+#             positional_encoding(),
+#             multi_head_attention(2),
+#             normalization(),
+#             multi_head_attention(2, non_masked=True),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 16, Relu()),
+#             Dense(16, 4, softmax()),
+#             normalization(out=4)], Adam())
 
-# trans_model = Transformer([encoder1,
+# # trans_model = Transformer([encoder1,
 #                            decoder1],
 #                            word_data, Optim(), categorical_cross_entropy(), 50, show=True)
 # trans_model.fit()
