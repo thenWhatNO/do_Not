@@ -30,8 +30,8 @@ for i in range(n_clusters):
 
 data_y_one_hot = one_how(data_y, n_clusters)
 
-plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
-plt.show()
+# plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
+# plt.show()
 
 data_set1 = [data_x, data_y_one_hot]
 
@@ -181,6 +181,7 @@ class categorical_cross_entropy:
 
 
 
+
 ###////////////////---leyars---////////////////////
 
 
@@ -200,9 +201,15 @@ class Dense:
         if self.flatten_befor:
             self.Wight = np.random.randn(self.output, np.shape(X)[-1]) * np.sqrt(2. / np.shape(X)[-1])
             self.flatten_befor = False
+
         self.Z_out = np.matmul(X, self.Wight.T) + self.Bios
+
+        self.mean = np.mean(self.Z_out, keepdims=True)
+        self.std = np.std(self.Z_out, axis=0, keepdims=True) + 1e-7  # Avoid division by zero
+        Z_out = (self.Z_out - self.mean) / self.std
+
         if self.activation_func != None:
-            self.A_out = self.activation_func.run(self.Z_out)
+            self.A_out = self.activation_func.run(Z_out)
             return self.A_out
         return self.Z_out
     
@@ -366,7 +373,7 @@ class Conv2D:
                             opa = self.kernel[c,:,:] * teta[:,None]
                             D_K[c] += np.sum(region * teta[:, None, None])
                             testy = D_A[b, y:y+self.kernel.shape[0],   x:x+self.kernel.shape[1]]
-                            D_A[b, y:y+self.kernel.shape[0],   x:x+self.kernel.shape[1]] += opa[:,:,None]
+                            D_A[b, y:y+self.kernel.shape[1],   x:x+self.kernel.shape[2]] += opa[:,:,None]
 
         return [D_K], D_A
 
@@ -490,19 +497,19 @@ class multi_head_attention:
 
     def split_or_mix(self, X, num_heads, action):
         if action == 'split':
-            batch_size, seq_length, d_model = X.shape
-            depth_per_head = d_model // num_heads
-            X = X.reshape(batch_size, seq_length, num_heads, depth_per_head)
+            batch_size, word_num, token_num = X.shape
+            depth_per_head = token_num // num_heads
+            X = X.reshape(batch_size, word_num, num_heads, depth_per_head)
 
             return np.transpose(X, axes=(0, 2, 1, 3))
         
         if action == 'mix':
 
-            batch_size, num_heads, seq_length, depth_per_head = X.shape
+            batch_size, num_heads, word_num, depth_per_head = X.shape
             d_model = num_heads * depth_per_head
             X = np.transpose(X, axes=(0, 2, 1, 3))
 
-            return X.reshape(batch_size, seq_length, d_model)
+            return X.reshape(batch_size, word_num, d_model)
 
     def run(self, X, enencoder_X=0):
         self.X = X
@@ -548,22 +555,18 @@ class multi_head_attention:
         D_O = np.matmul(gradint, self.O_w.swapaxes(-1,-2))
         D_wo = np.matmul(self.combain_out.reshape(-1, self.D_model).T, D_O.reshape(-1, self.D_model))
         split_D_O = self.split_or_mix(D_O, self.head_num, "split")
-        d_k = []
-        d_q = []
-        d_v = []
+        d_k = np.zeros_like(self.K_heads)
+        d_q = np.zeros_like(self.Q_heads)
+        d_v = np.zeros_like(self.V_heads)
 
         for i in range(self.head_num):
-            D_V_head = np.matmul(self.attantion_w[i], split_D_O[:,i,:,:])
-            d_v.append(D_V_head)
+            d_v[:,i] = np.matmul(self.attantion_w[i], split_D_O[:,i,:,:])
 
             d_attantion_w = np.matmul(split_D_O[:,i,:,:], self.V_heads[:,i].swapaxes(-1,-2))
             d_scale = d_attantion_w * softmax.derivative(None, self.attantion_w[i])
 
-            D_Q_head = np.matmul(d_scale, self.K_heads[:,i])
-            D_k_head = np.matmul(d_scale, self.Q_heads[:,i])
-
-            d_q.append(D_Q_head)
-            d_k.append(D_k_head)
+            d_q[:,i] = np.matmul(d_scale, self.K_heads[:,i])
+            d_k[:,i] = np.matmul(d_scale, self.Q_heads[:,i])
 
         d_k = self.split_or_mix(np.array(d_k).transpose(1,0,2,3), self.head_num, "mix")
         d_q = self.split_or_mix(np.array(d_q).transpose(1,0,2,3), self.head_num, "mix")
@@ -571,9 +574,9 @@ class multi_head_attention:
     
         d_A = np.matmul(d_q, self.Q_w.T) + np.matmul(d_k, self.K_w.T) + np.matmul(d_v, self.V_w)
 
-        d_k = np.mean(d_k, axis=0)
-        d_q = np.mean(d_q, axis=0)
-        d_v = np.mean(d_v, axis=0)
+        d_k = np.sum(d_k, axis=0)
+        d_q = np.sum(d_q, axis=0)
+        d_v = np.sum(d_v, axis=0)
 
         if self.masked:
             return [d_q, d_k, d_v, D_wo], d_A, (d_k @ self.K_w.T) + (d_v @ self.V_w.T)
@@ -984,19 +987,76 @@ class Transformer:
 
                     gradient = self.backword(loss)
 
+np.random.seed(123)
+
+
+data = np.array([[2,2,2,2,2,2,2,2,2,2]])
+
+Dense1 = Dense(10,1, Relu())
+Dense1.Wight, Dense1.Bios = np.random.choice([1,2], (2,10)),  np.random.choice([2,3,4], (1,2))
+test_out1 = Dense1.run(data)
+target1 = np.ones_like(test_out1)
+param, out1 = Dense1.optim(target1)
+
+conv_data = np.array([[2,2,2,2],
+                      [2,2,2,2],
+                      [2,2,2,2],
+                      [2,2,2,2]])
+
+Conv2D_1 = Conv2D([3,3], Relu())
+Conv2D_1.kernel = np.random.choice([1,2], (1,3,3))
+test_out2 = Conv2D_1.run(conv_data[None,:,:,None]).tolist()
+target2 = np.ones_like(test_out2)
+param, out2 = Conv2D_1.optim(target2)
+
+out2 = out2.tolist()
+
+
+MHA_data = np.array([[2,2,2,2],
+                     [2,2,2,2]])
+
+MHA_1 = multi_head_attention(2)
+MHA_1.K_w = np.random.choice([1,2], (4,4))
+MHA_1.O_w = np.random.choice([1,2], (4,4))
+MHA_1.V_w = np.random.choice([1,2], (4,4))
+MHA_1.Q_w = np.random.choice([1,2], (4,4))
+test_out3 = MHA_1.run(MHA_data[None])
+target3 = np.ones_like(test_out3)
+param, out3 = MHA_1.optim(target3)
+
+print("help[me]")
 
 
 
-data = np.array([[1,2,3],
-                [4,5,6],
-                [7,8,9]])
-target = np.array([2,2,2])
+[72., 72., 72.]
+[72., 72., 72.]
+[72., 72., 72.]
 
-dates = [data, target]
 
-test_model = NN([Dense(2,10, Relu()),
-                 Dense(10,4, softmax())], data_set1, 1, 10, SVM(), BinaryCrossEntropy(), show=True)
-looooos = test_model.fit()
+
+[2., 2., 2., 2., 2., 2., 2., 2., 2., 2.]
+[2., 2., 2., 2., 2., 2., 2., 2., 2., 2.]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # model = NN([Grid([3,3]),
