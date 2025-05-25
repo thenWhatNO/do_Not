@@ -10,6 +10,122 @@ toke_lib = "tokens.csv"
 def one_how(labels, num_class):
     return np.eye(num_class)[labels.astype(int)]
 
+##################### ---------- Data meneger class ------------
+
+
+
+class Data_meneger:
+    def __init__(self, data_X, data_Y, train=False, split_procent=0.8):
+        self.train = train
+
+        self.data_X = data_X
+        self.data_Y = data_Y
+
+        self.start_data_X = data_X
+        self.start_data_Y = data_Y
+
+        self.train_data_X = None
+        self.train_data_y = None
+
+        self.validation_data_X = None
+        self.validation_data_y = None
+
+        self.test_data_X = None
+        self.test_data_y = None
+
+        self.split_train_val(split_procent=split_procent)
+
+    def restart_data(self):
+        self.data_X = self.start_data_X
+        self.data_Y = self.start_data_Y
+    
+    def Shuffel(self):
+        assert len(self.train_data_X) == len(self.train_data_y)
+        train_index = np.arange(len(self.train_data_X))
+        np.random.shuffle(train_index)
+        self.train_data_X = np.array(self.train_data_X)[train_index]
+        self.train_data_y = np.array(self.train_data_y)[train_index]
+
+        assert len(self.validation_data_X) == len(self.validation_data_y)
+        validation_index = np.arange(len(self.validation_data_X))
+        np.random.shuffle(validation_index)
+        self.validation_data_X = np.array(self.validation_data_X)[validation_index]
+        self.validation_data_y = np.array(self.validation_data_y)[validation_index]
+
+        if self.train:
+            assert len(self.test_data_X) == len(self.test_data_y)
+            test_index = np.arange(len(self.test_data_X))
+            np.random.shuffle(test_index) 
+            self.test_data_X = np.array(self.test_data_X)[test_index]
+            self.test_data_y = np.array(self.test_data_y)[test_index]
+    
+    def split_train_val(self, split_procent):
+        split_use = int(len(self.data_X) * split_procent)
+        if self.train:
+            split_val_test= 2 // split_use
+
+            self.test_data_X = self.data_X[:split_val_test]
+            self.test_data_y = self.data_Y[:split_val_test]
+            self.validation_data_X = self.data_X[split_val_test:split_use]
+            self.validation_data_y = self.data_Y[split_val_test:split_use]
+            self.train_data_X = self.data_X[:split_use]
+            self.train_data_y = self.data_Y[:split_use]
+
+        else:
+            self.validation_data_X = self.data_X[split_use:]
+            self.validation_data_y = self.data_Y[split_use:]
+            self.train_data_X = self.data_X[:split_use]
+            self.train_data_y = self.data_Y[:split_use]
+    
+    def get_train_data(self):
+        return [self.train_data_X, self.train_data_y]
+    
+    def get_validation_data(self):
+        return [self.validation_data_X, self.validation_data_y]
+    
+    def get_test_data(self):
+        return [self.test_data_X, self.test_data_y]
+
+    def get_train_batch(self, batch_size):
+        batechs_list = []
+        
+        for batch in range(0, len(self.train_data_X), batch_size):
+            data_batch_X = self.train_data_X[batch:batch+batch_size]
+            data_batch_Y = self.train_data_y[batch:batch+batch_size]
+
+            batechs_list.append([data_batch_X, data_batch_Y])
+        return batechs_list
+
+    def get_validation_batch(self, batch_size):
+            batechs_list = []
+            
+            for batch in range(0, len(self.validation_data_X), batch_size):
+                data_batch_X = self.validation_data_X[batch:batch+batch_size]
+                data_batch_Y = self.validation_data_y[batch:batch+batch_size]
+
+                batechs_list.append([data_batch_X, data_batch_Y])
+            return batechs_list
+
+    def get_test_batch(self, batch_size):
+            batechs_list = []
+            
+            for batch in range(0, len(self.test_data_X), batch_size):
+                data_batch_X = self.test_data_X[batch:batch+batch_size]
+                data_batch_Y = self.test_data_y[batch:batch+batch_size]
+
+                batechs_list.append([data_batch_X, data_batch_Y])
+            return batechs_list
+
+
+
+
+
+
+
+
+
+
+
 ##################### ---------- clasture data ------------
 
 
@@ -33,7 +149,7 @@ data_y_one_hot = one_how(data_y, n_clusters)
 # plt.scatter(data_x[:, 0], data_x[:, 1], c=data_y, cmap='viridis')
 # plt.show()
 
-data_set1 = [data_x, data_y_one_hot]
+clastur_data = Data_meneger(data_x, data_y_one_hot)
 
 
 
@@ -47,7 +163,8 @@ labels = np.array(df['targ'])
 
 eye_labols = one_how(labels, 2)
 
-word_data = [sentens, eye_labols]
+word_data = Data_meneger(sentens, eye_labols)
+
 
 ##################### ---------- img data object detection ------------
 color = True
@@ -80,7 +197,7 @@ for i in images:
 
 one_label = one_how(labels, 3)
 
-data_set_photo_num_ob = [img_array_for_show, one_label]
+data_set_photo_num_ob = Data_meneger(img_array_for_show, one_label)
 
 
 ###////////////////---activation function---////////////////////
@@ -568,15 +685,15 @@ class multi_head_attention:
             d_q[:,i] = np.matmul(d_scale, self.K_heads[:,i])
             d_k[:,i] = np.matmul(d_scale, self.Q_heads[:,i])
 
-        d_k = self.split_or_mix(np.array(d_k).transpose(1,0,2,3), self.head_num, "mix")
-        d_q = self.split_or_mix(np.array(d_q).transpose(1,0,2,3), self.head_num, "mix")
-        d_v = self.split_or_mix(np.array(d_v).transpose(1,0,2,3), self.head_num, "mix")
-    
-        d_A = np.matmul(d_q, self.Q_w.T) + np.matmul(d_k, self.K_w.T) + np.matmul(d_v, self.V_w)
+        d_k = self.split_or_mix(np.array(d_k), self.head_num, "mix")
+        d_q = self.split_or_mix(np.array(d_q), self.head_num, "mix")
+        d_v = self.split_or_mix(np.array(d_v), self.head_num, "mix")
 
         d_k = np.sum(d_k, axis=0)
         d_q = np.sum(d_q, axis=0)
         d_v = np.sum(d_v, axis=0)
+
+        d_A = np.matmul(d_q, self.Q_w.T) + np.matmul(d_k, self.K_w.T) + np.matmul(d_v, self.V_w)
 
         if self.masked:
             return [d_q, d_k, d_v, D_wo], d_A, (d_k @ self.K_w.T) + (d_v @ self.V_w.T)
@@ -714,19 +831,21 @@ class normalization:
         gradint = np.array(gradint)
 
         if len(gradint.shape) > 2:
-            d_W1 = np.matmul(gradint, self.X_normal)
+            d_W1 = np.matmul(gradint.transpose(0,2,1), self.X_normal)
             d_W2 = np.sum(gradint, axis=1, keepdims=True)
-            d_W1 = np.mean(d_W1 , axis=0)
-            d_W2 = np.mean(d_W2 , axis=0)
         else:
             d_W1 = np.matmul(gradint.T, self.X_normal)
             d_W2 = np.sum(gradint, axis=0, keepdims=True)
+
+        if len(d_W1.shape) > len(self.W1.shape) or len(d_W2.shape) > len(self.W2.shape):
+            d_W1 = np.reshape(d_W1, (d_W1.shape[-2], d_W1.shape[-1]))
+            d_W2 = np.reshape(d_W2, (d_W2.shape[-2], d_W2.shape[-1]))
 
         D_x_normal = np.matmul(gradint, self.W1)
         num = np.shape(gradint)[-1]
 
 
-        if len(gradint.shape) > 2:
+        if len(self.X_normal.shape) > 2:
             d_X = (1/num) * (1/(self.std + self.epsilon)) * (num * D_x_normal - np.sum(D_x_normal, axis=-1, keepdims=True)) - ( D_x_normal * np.sum(np.matmul(D_x_normal, self.X_normal.transpose(0,2,1)), axis=-1, keepdims=True))
         else:
             d_X = (1/num) * (1/(self.std + self.epsilon)) * (num * D_x_normal - np.sum(D_x_normal, axis=-1, keepdims=True)) - ( D_x_normal * np.sum(np.matmul(D_x_normal, self.X_normal.T), axis=-1, keepdims=True))
@@ -801,8 +920,8 @@ class Show:
 
 
 class NN:
-    def __init__(self, layers,  data, batch, epoch, optimezator, loss, show=False):
-        self.X_data, self.Y_data = data[0], data[1]
+    def __init__(self, layers, data, epoch, optimezator, loss, shuffle=False, batch=False, show=False):
+        self.data = data
         self.optim = optimezator
         self.loss = loss
 
@@ -811,27 +930,9 @@ class NN:
 
         self.batch = batch
         self.epoch = epoch
+        self.shuffle = shuffle
 
         self.layers = layers
-
-    def Shuffel(self, x, y):
-        assert len(y) == len(x)
-        index = np.arange(len(x))
-        np.random.shuffle(index)
-
-        x = np.array(x)[index]
-        y = np.array(y)[index]
-        return x, y
-
-    def split(self, x_data, y_data, split_procent=0.8):
-        split_use = int(len(x_data) * split_procent)
-
-        val_data_x = x_data[split_use:]
-        val_data_y = y_data[split_use:]
-        train_data_x = x_data[:split_use]
-        train_data_y = y_data[:split_use]
-
-        return val_data_x, val_data_y, train_data_x, train_data_y
 
     def farword(self, X):
         data_layer = X
@@ -853,23 +954,27 @@ class NN:
         return gradient
 
     def fit(self):
-
-        self.X_data, self.Y_data = self.Shuffel(self.X_data, self.Y_data)
-        val_data_x, val_data_y, train_data_x, train_data_y = self.split(self.X_data, self.Y_data)
         loss_show = []
 
         for epoh in range(self.epoch):
-            for batch in range(0, len(train_data_x), self.batch):
 
-                x_batch = train_data_x[batch:batch + self.batch]
-                print(x_batch)
-                y_batch = train_data_y[batch:batch + self.batch]
-                print(y_batch)
+            if self.shuffle:
+                self.data.Shuffel()
 
+            if self.batch == False:
+                Train_batch = self.data.get_train_data()
+                validation_batch = self.data.get_validation_data()
+            else:
+                Train_batch = self.data.get_train_batch(self.batch)
+                validation_batch = self.data.get_validation_batch(self.batch)
+
+            for batch in Train_batch:
+                x_batch, y_batch = batch[0], batch[1]
                 output = self.farword(x_batch)
 
                 loss = self.loss.derivative(y_batch, output)
-                loss_show.append(self.loss.loss(y_batch, output))
+                real_loss = self.loss.loss(y_batch, output)
+                loss_show.append(real_loss)
 
                 if self.show:
                     self.map.count(loss_show[-1])
@@ -911,6 +1016,8 @@ class Decoder:
                 else:
                     params, grad = layer.optim(grad)
             except Exception as e:
+                if e == 'matmul: Input operand 1 has a mismatch in its core dimension 0, with gufunc signature (n?,k),(k,m?)->(n?,m?) (size 16 is different from 4)':
+                    raise
                 params, grad = layer.optim(grad)
 
             if params[0] is not None:
@@ -921,14 +1028,17 @@ class Decoder:
 
 
 class Transformer:
-    def __init__(self, layers, data, optimezator, loss, epoch, show=False):
-        self.X_data, self.Y_data = data[0], data[1]
+    def __init__(self, layers, data, optimezator, loss, epoch, shuffle=False, batch=False, show=False):
+        self.data = data
         self.layers = layers
         self.optim = optimezator
         self.loss = loss
         self.epoch = epoch
 
+        self.shuffle = shuffle
+
         self.show = show
+        self.batch = batch
         self.map = Show()
 
         self.none_masked_data = None
@@ -964,88 +1074,92 @@ class Transformer:
         masked_data = ""
         lossing = []
         for i in range(self.epoch):
-            for ind, full_data in enumerate(self.X_data):
-                split_data = full_data.strip().split()
-                masked_data = np.random.choice(["<pad>"], (np.shape(split_data)))
-                for index, element in enumerate(split_data):
-                    masked_data[index] = element
-                    masked_text = np.array([' '.join(map(str, masked_data.flatten()))])
-                    try:
-                        target = token_store.run([split_data[index+1]])
-                    except Exception as e:
-                        break
 
-                    output = self.farword(masked_text, np.array([full_data]))
-                    if np.any(np.isnan(output)):
-                        print(f"epoch : {i}, ")
+            if self.shuffle:
+                self.data.Shuffel()
 
-                    loss = self.loss.derivative(target[0], output)
-                    lossing.append(self.loss.loss(target[0], output))
+            if self.batch == False:
+                Train_batch = self.data.get_train_data()
+                validation_batch = self.data.get_validation_data()
+            else:
+                Train_batch = self.data.get_train_batch(self.batch)
+                validation_batch = self.data.get_validation_batch(self.batch)
 
-                    if self.show:
-                        self.map.count(lossing[-1])
 
-                    gradient = self.backword(loss)
+            for batch in Train_batch:
+                dataX, dataY = batch[0], batch[1]
+
+                for fraz in dataX:
+                    split_data = fraz.strip().split()
+                    masked_data = np.random.choice(["<pad>"], (np.shape(split_data)))
+
+                    for index, element in enumerate(split_data):
+
+                        masked_data[index] = element
+                        masked_text = np.array([' '.join(map(str, masked_data.flatten()))])
+
+                        try:
+                            target = token_store.run([split_data[index+1]])
+                        except Exception as e:
+                            break
+
+                        output = self.farword(masked_text, np.array([fraz]))
+                        if np.any(np.isnan(output)):
+                            print(f"epoch : {i}, ")
+
+                        loss = self.loss.derivative(target[0], output)
+                        lossing.append(self.loss.loss(target[0], output))
+
+                        if self.show:
+                            self.map.count(lossing[-1])
+
+                        gradient = self.backword(loss)
 
 np.random.seed(123)
 
 
-data = np.array([[2,2,2,2,2,2,2,2,2,2]])
-
-Dense1 = Dense(10,1, Relu())
-Dense1.Wight, Dense1.Bios = np.random.choice([1,2], (2,10)),  np.random.choice([2,3,4], (1,2))
-test_out1 = Dense1.run(data)
-target1 = np.ones_like(test_out1)
-param, out1 = Dense1.optim(target1)
-
-conv_data = np.array([[2,2,2,2],
-                      [2,2,2,2],
-                      [2,2,2,2],
-                      [2,2,2,2]])
-
-Conv2D_1 = Conv2D([3,3], Relu())
-Conv2D_1.kernel = np.random.choice([1,2], (1,3,3))
-test_out2 = Conv2D_1.run(conv_data[None,:,:,None]).tolist()
-target2 = np.ones_like(test_out2)
-param, out2 = Conv2D_1.optim(target2)
-
-out2 = out2.tolist()
-
-
-MHA_data = np.array([[2,2,2,2],
-                     [2,2,2,2]])
-
-MHA_1 = multi_head_attention(2)
-MHA_1.K_w = np.random.choice([1,2], (4,4))
-MHA_1.O_w = np.random.choice([1,2], (4,4))
-MHA_1.V_w = np.random.choice([1,2], (4,4))
-MHA_1.Q_w = np.random.choice([1,2], (4,4))
-test_out3 = MHA_1.run(MHA_data[None])
-target3 = np.ones_like(test_out3)
-param, out3 = MHA_1.optim(target3)
-
-print("help[me]")
 
 
 
-[72., 72., 72.]
-[72., 72., 72.]
-[72., 72., 72.]
+encoder1_test = NN([Embedding(toke_lib),
+            positional_encoding(),
+            multi_head_attention(2),
+            normalization(),
+            Flatten(),
+            Dense(1, 80, Relu(), flatten_befor=True),
+            Dense(80, 2, softmax())],
+            word_data, 10, Adam(), categorical_cross_entropy(), True, 1, show=True)
+loss = encoder1_test.fit()
 
 
 
-[2., 2., 2., 2., 2., 2., 2., 2., 2., 2.]
-[2., 2., 2., 2., 2., 2., 2., 2., 2., 2.]
+# encoder1 = NN([Embedding(toke_lib),
+#             positional_encoding(),
+#             multi_head_attention(2),
+#             normalization(),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 16, Relu()),
+#             normalization(out=16),
+#             Reshape_output(shape=(1,4,4))],
+#             word_data, 10, Adam(), categorical_cross_entropy(), True, 1, show=True)
 
+# decoder1 = Decoder([
+#             Embedding(toke_lib),
+#             positional_encoding(),
+#             multi_head_attention(2),
+#             normalization(),
+#             multi_head_attention(2, non_masked=True),
+#             Flatten(),
+#             Dense(1, 80, Relu(), flatten_befor=True),
+#             Dense(80, 16, Relu()),
+#             Dense(16, 4, softmax()),
+#             normalization(out=4)], Adam())
 
-
-
-
-
-
-
-
-
+# trans_model = Transformer([encoder1,
+#                            decoder1],
+#                            word_data, Adam(), categorical_cross_entropy(), 30, shuffle=True, batch=3, show=True)
+# trans_model.fit()
 
 
 
@@ -1080,10 +1194,9 @@ print("help[me]")
 #             Dense(1, 80, Relu(), flatten_befor=True),
 #             Dense(80, 50, Relu()),
 #             Dense(50, 3, softmax())],
-#         data_set_photo_num_ob, 20, 5, SVM(), categorical_cross_entropy(), show=False)
+#             data_set_photo_num_ob, 10, Adam(), categorical_cross_entropy(), True, 25, show=True)
 # loss = model.fit()
 # print(f"model : 2  \"SVM\"  ---- avrag loss : {np.average(loss)}")
-
 
 # model1 = NN([Conv2D([3,3], Relu(), filter_num=3),
 #             poolingMax(),
@@ -1110,30 +1223,9 @@ print("help[me]")
 # print(f"model : 3 \"transformer\"  ---- avrag loss : {np.average(loss2)}")
 
 
-# encoder1 = NN([Embedding(toke_lib),
-#             positional_encoding(),
-#             multi_head_attention(2),
-#             normalization(),
-#             Flatten(),
-#             Dense(1, 80, Relu(), flatten_befor=True),
-#             Dense(80, 16, Relu()),
-#             normalization(out=16),
-#             Reshape_output(shape=(1,4,4))],
-#         word_data, 20, 1, Adam(), categorical_cross_entropy())
+# model3 = NN([Dense(1, 80, Relu(), flatten_befor=True),
+#              Dense(80, 4, Relu())],
+#              clastur_data, 10, Adam(), categorical_cross_entropy(), True, 25, show=True)
+# loss3 = model3.fit()
 
-# decoder1 = Decoder([
-#             Embedding(toke_lib),
-#             positional_encoding(),
-#             multi_head_attention(2),
-#             normalization(),
-#             multi_head_attention(2, non_masked=True),
-#             Flatten(),
-#             Dense(1, 80, Relu(), flatten_befor=True),
-#             Dense(80, 16, Relu()),
-#             Dense(16, 4, softmax()),
-#             normalization(out=4)], Adam())
-
-# # trans_model = Transformer([encoder1,
-#                            decoder1],
-#                            word_data, Optim(), categorical_cross_entropy(), 50, show=True)
-# trans_model.fit()
+plt.show()
