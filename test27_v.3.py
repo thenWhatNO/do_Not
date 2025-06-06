@@ -413,7 +413,7 @@ class Grid:
 
 
 class Conv2D:
-    def __init__(self, kernel_size, activation_func, grid=False, filter_num = 1, stride=1, padding=0):
+    def __init__(self, kernel_size, activation_func=None, grid=False, filter_num = 1, stride=1, padding=0):
         self.stride = stride
         self.padding = padding
         self.kernel = np.random.randn(filter_num ,kernel_size[1], kernel_size[0])
@@ -464,8 +464,10 @@ class Conv2D:
                             output[b, y, x, c] += np.sum(region * self.kernel[c])
 
         self.Z_out = output
-        self.A_out = self.activation_func.run(output)
-        return self.A_out
+        if self.activation_func != None:
+            self.A_out = self.activation_func.run(output)
+            return self.A_out
+        return output
 
     def optim(self, gradint):
         D_A = np.zeros(self.input.shape)
@@ -596,7 +598,6 @@ class Flatten:
     
     def update_param(self, parameters):
         pass
-
 
 class multi_head_attention:
     def __init__(self, head_num, non_masked=False, add=False):
@@ -1115,7 +1116,129 @@ class Transformer:
 
                         gradient = self.backword(loss)
 
+###////////////////---layers testing---////////////////////
+
+
+### Dense layer test - farword --------------------------------------------------------------------------------
+test_dense = Dense(1,1)
+test_dense.Wight, test_dense.Bios = np.array([[0.5, -1.0],[1.0,  0.0],[-0.5, 0.5]]).T, np.array([[0.1, -0.2]])
+input_data_dense = np.array([[1.0, 2.0, 3.0],[-1.0, -2.0, -3.0]])
+dense_output = test_dense.run(input_data_dense)
+expected_output = np.array([[1.1, 0.3],[-0.9, -0.7]])
+
+if np.array_equal(dense_output, expected_output):
+    print("Exact match! Dense layer is correct.")
+else:
+    print("Mismatch! Something's off in your layer.")
+
+### Dense layer test - backword
+dout = np.array([[1.0, -1.0],[0.5, 0.5]])
+expected_dX = np.dot(dout, test_dense.Wight)
+expected_dW = np.dot(input_data_dense.T, dout)
+expected_db = np.sum(dout, axis=0, keepdims=True)
+
+parameters, D_A = test_dense.optim(dout)
+
+if np.array_equal(parameters[0], expected_dW) or np.array_equal(parameters[1], expected_db) or np.array_equal(D_A, expected_dX):
+    print("Exact match! Dense layer is correct.")
+else:
+    print("Mismatch! Something's off in your layer.")
+
+
+### Conv layer test - farword-----------------------------------------------------------------------
+test_Conv = Conv2D([1,1])
+test_Conv.kernel = np.array(
+                            [[[1.0]], [[0.0]],
+                             [[0.0]], [[-1.0]]]
+                             , dtype=np.float32)
+X_test_Conv = np.array([[[[1], [2], [3]],[[4], [5], [6]],[[7], [8], [9]]]], dtype=np.float32)
+expected_output_conv = np.array([[[[-4.], [-4.]],[[-4.], [-4.]]]], dtype=np.float32)
+conv_output = test_Conv.run(X_test_Conv)
+if np.array_equal(conv_output, expected_output_conv):
+    print("Exact match! Conv layer is correct.")
+else:
+    print("Mismatch! Something's off in your layer.")
+    print(f"conv_output ==  \n{conv_output}")
+    print(f"expected_output_conv ==  \n{expected_output_conv}")
+
+
+### Conv layer test - backword
+
+dout_conv = np.ones((1, 2, 2, 1), dtype=np.float32)
+expected_dW = np.array([[[[12.]] , [[16.]]], [[[24.]] , [[28.]]]], dtype=np.float32)
+expected_dX = np.array([[[[ 1.], [ 1.], [ 0.]],[[ 1.], [ 0.], [-1.]],[[ 0.], [-1.], [-1.]]]], dtype=np.float32)
+
+D_K, D_A = test_Conv.optim()
+
+if np.array_equal(D_K[0], expected_dW) or np.array_equal(D_A, expected_dX):
+    print("Exact match! Conv layer is correct.")
+else:
+    print("Mismatch! Something's off in your layer.")
+
+### MHA layer test - farword ---------------------------------------------------------------------------
+MHA_test_layer = multi_head_attention(1)
+
+X_MHA_data_test = np.array([[[0.37454012, 0.95071431, 0.73199394, 0.59865848],
+                             [0.15601864, 0.15599452, 0.05808361, 0.86617615],
+                             [0.60111501, 0.70807258, 0.02058449, 0.96990985]]])
+
+MHA_test_layer.Q_w = np.array([[0.83244264, 0.21233911, 0.18182497, 0.18340451],
+                               [0.30424224, 0.52475643, 0.43194502, 0.29122914],
+                               [0.61185289, 0.13949386, 0.29214465, 0.36636184],
+                               [0.45606998, 0.78517596, 0.19967378, 0.51423444]])
+MHA_test_layer.K_w = np.array([[0.59241457, 0.04645041, 0.60754485, 0.17052412],
+                               [0.06505159, 0.94888554, 0.96563203, 0.80839735],
+                               [0.30461377, 0.09767211, 0.68423303, 0.44015249],
+                               [0.12203823, 0.49517691, 0.03438852, 0.9093204 ]])
+MHA_test_layer.V_w = np.array([[0.25877998, 0.66252228, 0.31171108, 0.52006802],
+                               [0.54671028, 0.18485446, 0.96958463, 0.77513282],
+                               [0.93949894, 0.89482735, 0.59789998, 0.92187424],
+                               [0.0884925 , 0.19598286, 0.04522729, 0.32533033]])
+MHA_test_layer.O_w = np.array([[0.38867729, 0.27134903, 0.82873751, 0.35675333],
+                               [0.28093451, 0.54269608, 0.14092422, 0.80219698],
+                               [0.07455064, 0.98688694, 0.77224477, 0.19871568],
+                               [0.00552212, 0.81546143, 0.70685734, 0.72900717]])
+
+output_MHA_test = [[[1.86070549, 5.07345599, 4.27639289, 4.04385264],
+                    [1.82603222, 4.85504008, 4.08113604, 3.90321159],
+                    [1.85934022, 5.01536055, 4.2294309 , 4.01489853]]]
+real_MHA_output = MHA_test_layer.run(X_MHA_data_test)
+
+if np.array_equal(real_MHA_output, output_MHA_test):
+    print("Exact match! MHA layer is correct.")
+else:
+    print("Mismatch! Something's off in your layer.")
+
+### MHA layer test - backword
+
+Dout_MHA = np.array([[[1., 1., 1., 1.],[1., 1., 1., 1.],[1., 1., 1., 1.]]]) 
+out_gradint_MHA = np.array([[[ 5.54607793,  5.54607793,  5.54607793,  5.54607793],
+                             [14.94385662, 14.94385662, 14.94385662, 14.94385662],
+                             [12.58695983, 12.58695983, 12.58695983, 12.58695983],
+                             [11.96196276, 11.96196276, 11.96196276, 11.96196276]]])
+
+real_gradint_MHA_output = MHA_test_layer.optim(Dout_MHA)
+if np.array_equal(real_gradint_MHA_output, out_gradint_MHA):
+    print("Exact match! MHA layer is correct.")
+else:
+    print("Mismatch! Something's off in your layer.")
+
+###////////////////---models colection---////////////////////
+
+
+
+
 np.random.seed(123)
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1160,15 +1283,6 @@ loss = encoder1_test.fit()
 #                            decoder1],
 #                            word_data, Adam(), categorical_cross_entropy(), 30, shuffle=True, batch=3, show=True)
 # trans_model.fit()
-
-
-
-
-
-
-
-
-
 
 
 
