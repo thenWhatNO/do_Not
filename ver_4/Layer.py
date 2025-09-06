@@ -1,12 +1,26 @@
 import numpy as np
 
-
 #  regular data shape (batch, input_Z, output_Z)
 #  conv data shape (batch, W, H, Channer)
 #  tensers data shape (batch, num of word, tenser lenght)
 
 class Layer:
-    def __init__(self, inP, outP, active_func=None, optimazer=None, trainable=True, normalization=False, dropout=False):
+    def __init__(self, inP, outP, active_func=None, optimazer=None, trainable=True, normalization=False, dropout=False, leaning_rate=0.01):
+        self.param_data_memory = {
+            "input":[],
+            "linear":[],
+            "norm":[],
+            "activation":[],
+            "dropout":[],
+            "wight":[],
+            "bias":[],
+            "gamma":[],
+            "beta":[],
+        }
+
+        #learinig rate :)
+        self.learning_rate = leaning_rate
+        
         #data memory
         self.input_data = None
         self.pre_activ_output = None
@@ -49,6 +63,17 @@ class Layer:
         self.normaliz = normalization
         self.drop_out = dropout
 
+    def cahck_param_data(self):
+        self.param_data_memory["input"]=self.input_data
+        self.param_data_memory["linear"]=self.pre_activ_output
+        self.param_data_memory["norm"]=self.norm_data_output
+        self.param_data_memory["activation"]=self.activ_output
+        self.param_data_memory["dropout"]=self.dropted_data_output
+        self.param_data_memory["wight"]=self.Wight
+        self.param_data_memory["bias"]=self.Bias
+        self.param_data_memory["gamma"]=self.gamma
+        self.param_data_memory["beta"]=self.beta
+
     def Linear_prosecc(self, input):
         return np.matmul(input, self.Wight) + self.Bias
     
@@ -71,7 +96,7 @@ class Layer:
     def active_data(self, input, active_func):
         return active_func.activ(input)
 
-    def build_layer(self, test_in):
+    def build_layer(self):
         self.Wight = np.random.randn(self.out_shape, self.in_shape) * np.sqrt(2. / self.in_shape)
         self.Bias = np.random.randn(1, self.out_shape)
 
@@ -138,19 +163,45 @@ class Layer:
         if self.normaliz:
             D_inp = self.D_Normalization(D_inp)
         
-        D_inp = self.Linear_prosecc(D_inp)
+        D_inp = self.D_Linear_prosecc(D_inp)
 
         self.tune_Param()
+        self.cahck_param_data()
         return D_inp
 
 
-    ## to-do : add the learning param to the tuning parameters
     def tune_Param(self):
         if self.D_Wight != None:
-            self.optimazer.optim(self.Wight ,self.D_Wight)
-        if self.D_beta != None:
-            self.optimazer.optim(self.beta, self.D_beta)
+            updata_param = self.optimazer.optim(self.Wight ,self.D_Wight)
+            self.Wight -= updata_param * self.learning_rate
+
+        if self.D_Bias != None:
+            updata_param = self.optimazer.optim(self.Bias, self.D_Bias)
+            self.Bias -= updata_param * self.learning_rate
+
         if self.D_gamma != None:
-            self.optimazer.optim(self.gamma, self.D_gamma)
+            updata_param = self.optimazer.optim(self.gamma, self.D_gamma)
+            self.gamma -= updata_param * self.learning_rate
+
         if self.D_beta != None:
-            self.optimazer.optim(self.beta, self.D_beta)
+            updata_param = self.optimazer.optim(self.beta, self.D_beta)
+            self.beta -= updata_param * self.learning_rate
+
+
+# - - - - - - - - testing - - - - - - - - - - - 
+
+        #data shape (batch,  input fichur)
+data = np.array([[1,2,3],
+                 [1,2,3],
+                 [1,2,3]])
+
+layer_1 = Layer(3,1, normalization=True, dropout=True)
+
+layer_1.build_layer()
+out = layer_1.farword(data)
+
+D_data = np.array([[1,1,1],
+                   [1,1,1],
+                   [1,1,1]])
+
+D_out = layer_1.backword(D_data)
