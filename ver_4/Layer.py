@@ -188,7 +188,7 @@ class Layer:
             self.beta -= updata_param * self.learning_rate
 
 
-# - - - - - - - - testing - - - - - - - - - - - 
+# - - - - - - - - testing - - - - - - - - - - - not yet!
 
         #data shape (batch,  input fichur)
 data = np.array([[1,2,3],
@@ -205,3 +205,18 @@ D_data = np.array([[1,1,1],
                    [1,1,1]])
 
 D_out = layer_1.backword(D_data)
+
+
+# - - - - - - - - - - other layers - - - - - - - - - - - 
+
+class Dense:
+    def __init__(self):
+        pass
+
+class Conv2D:
+    def __init__(self):
+        pass
+
+class multi_head_attention:
+    def __init__(self):
+        pass
